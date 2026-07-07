@@ -11,6 +11,7 @@ This website is for a full-stack web-developer's website building business, spec
 - **lucide-react** — icons
 
 ## Project Structure
+```bash
 src/
 ├── assets/              # images, static files
 ├── components/
@@ -21,6 +22,7 @@ src/
 ├── App.jsx
 ├── main.jsx
 └── index.css            # global theme (CSS custom properties) + component styles
+```
 
 ## Setup
 
