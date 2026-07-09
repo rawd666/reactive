@@ -1,0 +1,23 @@
+services:
+  reactive:
+    build: .
+    image: reactive:prod
+    container_name: reactive
+    restart: unless-stopped
+    networks:
+      - edge-traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=edge-traefik"
+      - "traefik.http.middlewares.reactive-compress.compress=true"
+      - "traefik.http.middlewares.reactive-compress.compress.encodings=br,zstd,gzip"
+      - "traefik.http.middlewares.reactive-secheaders.headers.customResponseHeaders.Server="
+      - "traefik.http.routers.reactive-web.rule=Host(`reactiveweb.dev`)"
+      - "traefik.http.routers.reactive-web.entrypoints=websecure"
+      - "traefik.http.routers.reactive-web.tls.certresolver=le"
+      - "traefik.http.routers.reactive-web.middlewares=reactive-compress@docker,reactive-secheaders@docker"
+      - "traefik.http.services.reactive-web.loadbalancer.server.port=5073"
+
+networks:
+  edge-traefik:
+    external: true
