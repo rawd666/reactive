@@ -1,7 +1,7 @@
 # =========================================
 # Stage: Development (Vite React.js App)
 # =========================================
-ARG NODE_VERSION=24.14.0-alpine
+ARG NODE_VERSION=24.14.0-slim
  
 FROM node:${NODE_VERSION} AS dev
  
@@ -30,4 +30,4 @@ USER node
 EXPOSE 5173
  
 # Run Vite in dev mode, accessible outside the container
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "build", "--", "--host", "0.0.0.0"]
