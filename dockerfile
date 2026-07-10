@@ -27,4 +27,4 @@ USER node
 EXPOSE 5073
  
 # Run Vite in dev mode, accessible outside the container
-CMD ["npm", "start", "--", "--host", "0.0.0.0"]
+CMD ["npx", "serve", "-s", "dist", "-l", "5073"]
