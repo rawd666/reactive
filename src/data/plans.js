@@ -1,6 +1,8 @@
 export const PLANS = [
   {
+    id: "launch",
     name: "Launch",
+    planId: "P-dc47242d-2a55-4260-b981-a6da55dddbe3",
     sub: "For a new business that needs a clean, credible first site.",
     price: "$800",
     priceUnit: "one-time",
@@ -17,7 +19,9 @@ export const PLANS = [
     ],
   },
   {
+    id: "grow",
     name: "Grow",
+    planId: "P-c742beb3-fed1-4b3e-8482-be15bb9a006a",
     sub: "For a business ready to show up like the real thing.",
     price: "$1,500",
     priceUnit: "one-time",
@@ -36,7 +40,9 @@ export const PLANS = [
     ],
   },
   {
+    id: "scale",
     name: "Scale",
+    planId: "P-816260cd-af7c-4753-b9bd-6a189963a969",
     sub: "For a business that needs the site to actually do things.",
     price: "$2,800+",
     priceUnit: "starting at, one-time",

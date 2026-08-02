@@ -16,7 +16,7 @@ services:
       - "traefik.http.routers.reactive-web.entrypoints=websecure"
       - "traefik.http.routers.reactive-web.tls.certresolver=le"
       - "traefik.http.routers.reactive-web.middlewares=reactive-compress@docker,reactive-secheaders@docker"
-      - "traefik.http.services.reactive-web.loadbalancer.server.port=5073"
+      - "traefik.http.services.reactive-web.loadbalancer.server.port=5173"
 
 networks:
   edge-traefik:

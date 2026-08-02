@@ -20,7 +20,7 @@ function PriceCard({ plan }) {
       <button
         className={`rx-btn rx-btn-full${plan.featured ? " rx-btn-primary" : " rx-btn-outline"}`}
         style={{ marginTop: 28 }}
-        onClick={() => navigate("/contact")}
+        onClick={() => navigate(`/checkout/${plan.id}`)}
       >
         Start with {plan.name}
       </button>

@@ -24,7 +24,7 @@ USER node
  
  
 # Expose Vite dev server port
-EXPOSE 5073
+EXPOSE 5173
  
 # Run Vite in dev mode, accessible outside the container
-CMD ["npx", "serve", "-s", "dist", "-l", "5073"]
+CMD ["node", "server.js"]
