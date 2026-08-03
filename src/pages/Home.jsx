@@ -21,7 +21,7 @@ function Home() {
             <p className="rx-lead" style={{ marginTop: 24 }}>
               I design and build custom websites with React. No drag-and-drop templates, no
               cookie-cutter layouts. If you can describe it, I can build it into your site: booking
-              systems, animations, dashboards, e-commerce, the works.
+              systems, animations, dashboards, e-commerce, and so on.
             </p>
             <div style={{ display: "flex", gap: 16, marginTop: 36, flexWrap: "wrap" }}>
               <button className="rx-btn rx-btn-primary" onClick={() => navigate("/packages")}>
@@ -43,7 +43,7 @@ function Home() {
             Your business is real. Your website should prove it.
           </h2>
           <p className="rx-lead" style={{ marginTop: 16 }}>
-            Social media accounts and marketplace listings are rented land — the platform sets the
+            Social media accounts and marketplace listings are rented land. The platform sets the
             rules, the algorithm decides who sees you, and the design looks like everyone else's. A
             website is the one piece of your business that's fully yours.
           </p>
@@ -71,7 +71,7 @@ function Home() {
           </div>
           <div>
             <p className="rx-lead">
-              Most small-business websites are assembled from page builders — fine for a basic
+              Most small-business websites are assembled from page builders. Fine for a basic
               brochure, but they hit a wall fast. I build every site from scratch in React, which
               means the site is made of real, custom components instead of pre-made blocks.
             </p>
@@ -97,7 +97,7 @@ function Home() {
               on their way up.
             </h2>
             <p className="rx-lead" style={{ marginTop: 20 }}>
-              I work best with new and early-stage businesses — the ones who know exactly where
+              I work best with new and early-stage businesses. The ones who know exactly where
               they're headed but haven't had a website that looks like it yet. That's the gap I
               close.
             </p>
@@ -106,7 +106,7 @@ function Home() {
             <p style={{ marginBottom: 20 }}>
               Because it's just me, you're never handed off to a project manager or a junior
               designer. You work directly with the person building your site, from the first
-              conversation to launch day — which usually means it moves faster and fits your actual
+              conversation to launch day, which usually means it moves faster and fits your actual
               business, not a generic mold.
             </p>
             <p>

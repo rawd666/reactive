@@ -2,7 +2,7 @@ export const PROCESS = [
   {
     n: "<01/>",
     title: "Discovery",
-    body: "We talk through your business, your customers, and what the site needs to do — then I map out pages and features.",
+    body: "We talk through your business, your customers, and what the site needs to do, then I map out pages and features.",
   },
   {
     n: "<02/>",

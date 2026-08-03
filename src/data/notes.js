@@ -13,6 +13,6 @@ export const NOTES = [
   },
   {
     title: "Not sure which one fits?",
-    body: "That's normal. Reach out and describe your business — I'll tell you honestly which package makes sense.",
+    body: "That's normal. Reach out and describe your business. I'll tell you honestly which package makes sense.",
   },
 ];
