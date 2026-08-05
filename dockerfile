@@ -1,30 +1,39 @@
 ARG NODE_VERSION=24.14.0-slim
- 
-FROM node:${NODE_VERSION} AS dev
- 
-# Set working directory inside the container
+
+# ---- Build stage: compiles the React app with Vite ----
+FROM node:${NODE_VERSION} AS build
+
 WORKDIR /app
- 
-# Copy package files
+
 COPY package*.json ./
- 
-# Install dependencies
 RUN npm install
- 
-# Copy rest of the source code
+
 COPY . .
- 
- 
-# Ensure the "node" user owns the application files
+
+# Vite bakes VITE_-prefixed env vars into the client bundle at build time
+ARG VITE_PAYPAL_PLAN_LAUNCH
+ARG VITE_PAYPAL_PLAN_GROW
+ARG VITE_PAYPAL_PLAN_SCALE
+ENV VITE_PAYPAL_PLAN_LAUNCH=$VITE_PAYPAL_PLAN_LAUNCH
+ENV VITE_PAYPAL_PLAN_GROW=$VITE_PAYPAL_PLAN_GROW
+ENV VITE_PAYPAL_PLAN_SCALE=$VITE_PAYPAL_PLAN_SCALE
+
+RUN npm run build
+
+# ---- Production stage: runs the Express server ----
+FROM node:${NODE_VERSION} AS prod
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --omit=dev
+
+COPY server.js ./
+COPY --from=build /app/dist ./dist
+
 RUN chown -R node:node /app
- 
- 
-# Switch to the built-in non-root "node" user
 USER node
- 
- 
-# Expose Vite dev server port
+
 EXPOSE 5173
- 
-# Run Vite in dev mode, accessible outside the container
+
 CMD ["node", "server.js"]

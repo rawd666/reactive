@@ -1,9 +1,16 @@
 services:
   reactive:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_PAYPAL_PLAN_LAUNCH: ${VITE_PAYPAL_PLAN_LAUNCH}
+        VITE_PAYPAL_PLAN_GROW: ${VITE_PAYPAL_PLAN_GROW}
+        VITE_PAYPAL_PLAN_SCALE: ${VITE_PAYPAL_PLAN_SCALE}
     image: reactive:prod
     container_name: reactive
     restart: unless-stopped
+    env_file:
+      - .env
     networks:
       - edge-traefik
     labels:
