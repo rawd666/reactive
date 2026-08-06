@@ -6,11 +6,14 @@ services:
         VITE_PAYPAL_PLAN_LAUNCH: ${VITE_PAYPAL_PLAN_LAUNCH}
         VITE_PAYPAL_PLAN_GROW: ${VITE_PAYPAL_PLAN_GROW}
         VITE_PAYPAL_PLAN_SCALE: ${VITE_PAYPAL_PLAN_SCALE}
+        VITE_PAYPAL_CLIENT_ID: ${VITE_PAYPAL_CLIENT_ID}
     image: reactive:prod
     container_name: reactive
     restart: unless-stopped
     env_file:
       - .env
+    ports:
+      - "5073:5173"
     networks:
       - edge-traefik
     labels:

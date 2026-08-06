@@ -19,8 +19,7 @@ function ContactForm() {
     setStatus({ loading: true, error: "" });
 
     try {
-      // Connects to your Docker container port
-      const response = await fetch("http://localhost:5073/api/contact", {
+      const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

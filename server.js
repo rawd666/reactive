@@ -24,6 +24,85 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Exchanges the PayPal client credentials for a short-lived API access token
+async function getPayPalAccessToken() {
+  const auth = Buffer.from(
+    `${process.env.VITE_PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`
+  ).toString('base64');
+
+  const response = await fetch(`${process.env.PAYPAL_API_BASE}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+
+  if (!response.ok) throw new Error('Failed to authenticate with PayPal');
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Confirms a subscription is really active with PayPal before treating the checkout as paid
+app.post('/api/subscription/activate', async (req, res) => {
+  const { subscriptionID, planId } = req.body;
+
+  if (!subscriptionID || !planId) {
+    return res.status(400).json({ error: 'Missing subscription details' });
+  }
+
+  try {
+    const accessToken = await getPayPalAccessToken();
+
+    const subResponse = await fetch(
+      `${process.env.PAYPAL_API_BASE}/v1/billing/subscriptions/${subscriptionID}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    if (!subResponse.ok) throw new Error('Could not verify subscription with PayPal');
+    const subscription = await subResponse.json();
+
+    if (subscription.status !== 'ACTIVE') {
+      return res.status(402).json({ error: 'Subscription is not active' });
+    }
+
+    const subscriberEmail = subscription.subscriber?.email_address;
+    const subscriberName = subscription.subscriber?.name?.given_name || 'there';
+
+    transporter.sendMail(
+      {
+        from: process.env.GMAIL_USER,
+        to: process.env.GMAIL_USER,
+        subject: `New subscription: ${planId}`,
+        text: `A new subscription was confirmed.\n\nPlan: ${planId}\nSubscription ID: ${subscriptionID}\nSubscriber email: ${subscriberEmail || 'unknown'}`,
+      },
+      (error) => {
+        if (error) console.error('Failed to send owner notification email:', error);
+      }
+    );
+
+    if (subscriberEmail) {
+      transporter.sendMail(
+        {
+          from: process.env.GMAIL_USER,
+          to: subscriberEmail,
+          subject: `You're subscribed to the ${planId} plan`,
+          text: `Hi ${subscriberName},\n\nThanks for subscribing! Your payment went through and your ${planId} plan is now active.\n\nI'll be in touch within 1-2 business days to kick things off. If you have any questions in the meantime, just reply to this email.\n\nThanks,\nRawd`,
+        },
+        (error) => {
+          if (error) console.error('Failed to send customer confirmation email:', error);
+        }
+      );
+    }
+
+    res.status(200).json({ message: 'Subscription activated' });
+  } catch (error) {
+    console.error(error);
+    res.status(502).json({ error: 'Failed to verify subscription' });
+  }
+});
+
 // Post route to handle form submission
 app.post('/api/contact', (req, res) => {
   const { name, email, business, package: selectedPackage, message } = req.body;
