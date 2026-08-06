@@ -12,8 +12,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    ports:
-      - "5073:5173"
     networks:
       - edge-traefik
     labels:
