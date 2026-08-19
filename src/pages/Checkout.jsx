@@ -3,12 +3,14 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Check } from "lucide-react";
 import { PLANS } from "../data/plans";
+import { TERMS_VERSION } from "./Terms";
 
 function Checkout() {
   const { planId } = useParams();
   const navigate = useNavigate();
   const plan = PLANS.find((p) => p.id === planId);
   const [status, setStatus] = useState({ loading: false, error: "" });
+  const [agreed, setAgreed] = useState(false);
 
   if (!plan) {
     return (
@@ -73,6 +75,22 @@ function Checkout() {
             <p style={{ color: "red", fontSize: 14, marginBottom: 16 }}>{status.error}</p>
           )}
 
+          <label className="rx-terms-check">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              disabled={status.loading}
+            />
+            <span>
+              I have read and agree to the{" "}
+              <Link to="/terms" target="_blank" rel="noopener noreferrer">
+                Terms &amp; Conditions
+              </Link>
+              , including the {plan.name} package's included features and revision limits.
+            </span>
+          </label>
+
           <PayPalScriptProvider
             options={{
               "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
@@ -83,7 +101,7 @@ function Checkout() {
           >
             <PayPalButtons
               style={{ label: "subscribe" }}
-              disabled={status.loading}
+              disabled={status.loading || !agreed}
               createSubscription={(data, actions) =>
                 actions.subscription.create({ plan_id: plan.planId })
               }
@@ -96,6 +114,8 @@ function Checkout() {
                     body: JSON.stringify({
                       subscriptionID: data.subscriptionID,
                       planId: plan.id,
+                      agreedToTerms: agreed,
+                      termsVersion: TERMS_VERSION,
                     }),
                   });
 
