@@ -15,6 +15,9 @@ function Footer() {
               {p.label}
             </NavLink>
           ))}
+          <NavLink to="/terms" className="rx-navlink">
+            Terms
+          </NavLink>
         </div>
       </div>
     </footer>

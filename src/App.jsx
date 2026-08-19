@@ -8,6 +8,7 @@ import Packages from "./pages/Packages";
 import Contact from "./pages/Contact";
 import Checkout from "./pages/Checkout";
 import ThankYou from "./pages/ThankYou";
+import Terms from "./pages/Terms";
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/checkout/thank-you" element={<ThankYou />} />
         <Route path="/checkout/:planId" element={<Checkout />} />
+        <Route path="/terms" element={<Terms />} />
       </Routes>
       <Footer />
     </div>

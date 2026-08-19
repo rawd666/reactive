@@ -34,7 +34,7 @@ function Nav() {
             </NavLink>
           ))}
           <button className="rx-cta" onClick={goToContact}>
-            Start a project
+            Get in touch
           </button>
         </div>
 
@@ -61,7 +61,7 @@ function Nav() {
             </NavLink>
           ))}
           <button className="rx-cta" onClick={goToContact}>
-            Start a project
+            Get in touch
           </button>
         </div>
       )}

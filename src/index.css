@@ -98,8 +98,8 @@ body {
 .rx-navlink{font-size:14px;font-weight:500;color:var(--color-gray-mid);position:relative;padding:6px 0;background:none;border:none;transition:color .2s ease;}
 .rx-navlink:hover,.rx-navlink.active{color:var(--color-white);}
 .rx-navlink.active::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--color-pink);}
-.rx-cta{background:var(--color-pink);color:var(--color-black);padding:10px 20px;border-radius:var(--radius-sm);font-weight:600;font-size:14px;border:none;transition:background .2s ease,color .2s ease;}
-.rx-cta:hover{background:var(--color-white);}
+.rx-cta{background:var(--color-pink);color:var(--color-white);padding:10px 20px;border-radius:var(--radius-sm);font-weight:600;font-size:14px;border:none;transition:background .2s ease,color .2s ease;}
+.rx-cta:hover{background:var(--color-white);color:var(--color-black);}
 
 .rx-navtoggle{display:none;background:none;border:1px solid var(--color-border);color:var(--color-white);width:40px;height:40px;border-radius:var(--radius-sm);align-items:center;justify-content:center;}
 .rx-navlinks-mobile{display:none;}
@@ -209,6 +209,10 @@ body {
 .rx-form input:focus,.rx-form select:focus,.rx-form textarea:focus{border-color:var(--color-pink);outline:none;}
 .rx-form-note{font-size:12px;color:var(--color-gray-mid);margin-top:12px;}
 .rx-form-success{background:rgba(255,31,125,0.08);border:1px solid var(--color-pink);color:var(--color-white);padding:16px;border-radius:var(--radius-sm);font-size:14px;margin-top:8px;}
+
+.rx-terms-check{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--color-text-body);margin-bottom:20px;cursor:pointer;}
+.rx-terms-check input{margin-top:3px;flex-shrink:0;}
+.rx-terms-check a{color:var(--color-pink);}
 
 /* ---------- FOOTER ---------- */
 .rx-footer{padding:48px 0;}
