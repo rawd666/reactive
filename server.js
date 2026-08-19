@@ -1,6 +1,7 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,9 +12,58 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, 'dist');
 
 const app = express();
+
+// Traefik sits in front of this app as a single reverse-proxy hop (see docker-compose.yaml),
+// so req.ip should be read from the first X-Forwarded-For entry rather than the socket address.
+app.set('trust proxy', 1);
+
+// Only the site itself (and any extra origins set via ALLOWED_ORIGINS) may call these APIs.
+// Requests with no Origin header (curl, server-to-server) are left unblocked since they aren't
+// the browser cross-origin case CORS protects against.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://reactiveweb.dev')
+  .split(',')
+  .map((o) => o.trim());
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+}));
+
 app.use(express.json());
-app.use(cors()); // Allows your React frontend to talk to this backend
 app.use(express.static(distPath)); // Serve static files from the dist directory
+
+// Maps the human-readable package id to the real PayPal plan id, so the server can
+// confirm the paid subscription actually matches the package being activated.
+const PLAN_ID_MAP = {
+  launch: process.env.VITE_PAYPAL_PLAN_LAUNCH,
+  grow: process.env.VITE_PAYPAL_PLAN_GROW,
+  scale: process.env.VITE_PAYPAL_PLAN_SCALE,
+};
+
+// Tracks subscription IDs that have already triggered activation emails, so a replayed
+// request can't resend them. Resets on server restart; fine at this app's scale/traffic.
+const activatedSubscriptionIDs = new Set();
+
+const activateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});
+
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});
 
 // Configure the email transporter using Gmail
 const transporter = nodemailer.createTransport({
@@ -45,7 +95,7 @@ async function getPayPalAccessToken() {
 }
 
 // Confirms a subscription is really active with PayPal before treating the checkout as paid
-app.post('/api/subscription/activate', async (req, res) => {
+app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
   const { subscriptionID, planId, agreedToTerms, termsVersion } = req.body;
 
   if (!subscriptionID || !planId) {
@@ -54,6 +104,10 @@ app.post('/api/subscription/activate', async (req, res) => {
 
   if (agreedToTerms !== true || !termsVersion) {
     return res.status(400).json({ error: 'You must agree to the Terms & Conditions to subscribe' });
+  }
+
+  if (activatedSubscriptionIDs.has(subscriptionID)) {
+    return res.status(200).json({ message: 'Subscription already activated' });
   }
 
   try {
@@ -70,6 +124,18 @@ app.post('/api/subscription/activate', async (req, res) => {
     if (subscription.status !== 'ACTIVE') {
       return res.status(402).json({ error: 'Subscription is not active' });
     }
+
+    const expectedPlanId = PLAN_ID_MAP[planId];
+    if (!expectedPlanId || subscription.plan_id !== expectedPlanId) {
+      return res.status(400).json({ error: 'Subscription plan does not match the requested package' });
+    }
+
+    // Mark as activated before sending mail so two near-simultaneous requests for the same
+    // subscription can't both slip past the check above and double-send.
+    if (activatedSubscriptionIDs.has(subscriptionID)) {
+      return res.status(200).json({ message: 'Subscription already activated' });
+    }
+    activatedSubscriptionIDs.add(subscriptionID);
 
     const subscriberEmail = subscription.subscriber?.email_address;
     const subscriberName = subscription.subscriber?.name?.given_name || 'there';
@@ -108,7 +174,7 @@ app.post('/api/subscription/activate', async (req, res) => {
 });
 
 // Post route to handle form submission
-app.post('/api/contact', (req, res) => {
+app.post('/api/contact', contactLimiter, (req, res) => {
   const { name, email, business, package: selectedPackage, message } = req.body;
 
   const mailOptions = {
@@ -130,6 +196,15 @@ app.post('/api/contact', (req, res) => {
 // Fallback: serve index.html for any other GET request so React Router can handle client-side routes
 app.use((req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
+});
+
+// Catches the error the cors() middleware raises for disallowed origins, so it returns a
+// plain 403 instead of falling through to Express's default error handler.
+app.use((err, req, res, next) => {
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  next(err);
 });
 
 app.listen(5173, () => console.log('Server running on port 5173'));
