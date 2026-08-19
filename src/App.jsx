@@ -1,4 +1,5 @@
-import { Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { Routes, Route, useLocation } from "react-router-dom";
 
 import Nav from "./components/layout/Nav";
 import Footer from "./components/layout/Footer";
@@ -10,9 +11,20 @@ import Checkout from "./pages/Checkout";
 import ThankYou from "./pages/ThankYou";
 import Terms from "./pages/Terms";
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function App() {
   return (
     <div className="reactive-root">
+      <ScrollToTop />
       <Nav />
       <Routes>
         <Route path="/" element={<Home />} />
