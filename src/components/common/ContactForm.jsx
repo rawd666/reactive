@@ -45,8 +45,8 @@ function ContactForm() {
         </h3>
         <p style={{ color: "var(--color-text-body)" }}>
           Thanks, {form.name || "there"}. Your message has been sent straight through to my inbox. If you need anything else, you can also reach out directly at{" "}
-          <a href="mailto:rawd.nimer@gmail.com" style={{ color: "var(--color-pink)" }}>
-            rawd.nimer@gmail.com
+          <a href="mailto:rawd@reactiveweb.dev" style={{ color: "var(--color-pink)" }}>
+            rawd@reactiveweb.dev
           </a>
           .
         </p>
