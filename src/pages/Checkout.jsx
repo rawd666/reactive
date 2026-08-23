@@ -4,6 +4,7 @@ import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Check } from "lucide-react";
 import { PLANS } from "../data/plans";
 import { TERMS_VERSION } from "./Terms";
+import { PRIVACY_VERSION } from "./Privacy";
 
 function Checkout() {
   const { planId } = useParams();
@@ -86,6 +87,10 @@ function Checkout() {
               I have read and agree to the{" "}
               <Link to="/terms" target="_blank" rel="noopener noreferrer">
                 Terms &amp; Conditions
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+                Privacy Policy
               </Link>
               , including the {plan.name} package's included features and revision limits.
             </span>
@@ -116,6 +121,8 @@ function Checkout() {
                       planId: plan.id,
                       agreedToTerms: agreed,
                       termsVersion: TERMS_VERSION,
+                      agreedToPrivacy: agreed,
+                      privacyVersion: PRIVACY_VERSION,
                     }),
                   });
 

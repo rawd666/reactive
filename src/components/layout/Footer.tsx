@@ -18,6 +18,9 @@ function Footer() {
           <NavLink to="/terms" className="rx-navlink">
             Terms
           </NavLink>
+          <NavLink to="/privacy" className="rx-navlink">
+            Privacy
+          </NavLink>
         </div>
       </div>
     </footer>

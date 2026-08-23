@@ -96,7 +96,7 @@ async function getPayPalAccessToken() {
 
 // Confirms a subscription is really active with PayPal before treating the checkout as paid
 app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
-  const { subscriptionID, planId, agreedToTerms, termsVersion } = req.body;
+  const { subscriptionID, planId, agreedToTerms, termsVersion, agreedToPrivacy, privacyVersion } = req.body;
 
   if (!subscriptionID || !planId) {
     return res.status(400).json({ error: 'Missing subscription details' });
@@ -104,6 +104,10 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
 
   if (agreedToTerms !== true || !termsVersion) {
     return res.status(400).json({ error: 'You must agree to the Terms & Conditions to subscribe' });
+  }
+
+  if (agreedToPrivacy !== true || !privacyVersion) {
+    return res.status(400).json({ error: 'You must agree to the Privacy Policy to subscribe' });
   }
 
   if (activatedSubscriptionIDs.has(subscriptionID)) {
@@ -145,7 +149,7 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
         from: process.env.GMAIL_USER,
         to: process.env.GMAIL_USER,
         subject: `New subscription: ${planId}`,
-        text: `A new subscription was confirmed.\n\nPlan: ${planId}\nSubscription ID: ${subscriptionID}\nSubscriber email: ${subscriberEmail || 'unknown'}\n\nTerms & Conditions accepted: yes (version ${termsVersion})\nAccepted at: ${new Date().toISOString()}\nRequest IP: ${req.ip}`,
+        text: `A new subscription was confirmed.\n\nPlan: ${planId}\nSubscription ID: ${subscriptionID}\nSubscriber email: ${subscriberEmail || 'unknown'}\n\nTerms & Conditions accepted: yes (version ${termsVersion})\nPrivacy Policy accepted: yes (version ${privacyVersion})\nAccepted at: ${new Date().toISOString()}\nRequest IP: ${req.ip}`,
       },
       (error) => {
         if (error) console.error('Failed to send owner notification email:', error);
