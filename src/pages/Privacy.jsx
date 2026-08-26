@@ -56,11 +56,17 @@ function Privacy() {
             <a href="/contact">contact page</a>.
           </p>
           <p style={{ marginBottom: 12 }}>
-            No mobile information — including text messaging originator opt-in data and consent —
-            is shared with third parties or affiliates for marketing or promotional purposes. No mobile 
-            information will be shared with third parties/affiliates for marketing/promotional purposes. 
-            All other categories exclude text messaging originator opt-in data and consent; this information 
-            will not be shared with any third parties.
+            <span style={{ color: "var(--color-pink)" }}>
+              No mobile information 
+            </span>{" "}
+              — including text messaging originator opt-in data and consent —
+            <span style={{ color: "var(--color-pink)" }}>
+              is shared with third parties or affiliates for marketing or promotional purposes. No
+              mobile information will be shared with third parties/affiliates for marketing/promotional
+              purposes.
+            </span>{" "}
+            All other categories exclude text messaging originator opt-in data and consent; this
+            information will not be shared with any third parties.
           </p>
 
           <h2 className="rx-h3" style={{ marginBottom: 8, marginTop: 36 }}>4. Third parties we rely on</h2>
