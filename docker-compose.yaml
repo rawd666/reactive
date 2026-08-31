@@ -25,6 +25,14 @@ services:
       - "traefik.http.routers.reactive-web.tls.certresolver=le"
       - "traefik.http.routers.reactive-web.middlewares=reactive-compress@docker,reactive-secheaders@docker"
       - "traefik.http.services.reactive-web.loadbalancer.server.port=5173"
+      - "traefik.http.middlewares.reactive-www-redirect.redirectregex.regex=^https://www\\.reactiveweb\\.dev/(.*)"
+      - "traefik.http.middlewares.reactive-www-redirect.redirectregex.replacement=https://reactiveweb.dev/$${1}"
+      - "traefik.http.middlewares.reactive-www-redirect.redirectregex.permanent=true"
+      - "traefik.http.routers.reactive-web-www.rule=Host(`www.reactiveweb.dev`)"
+      - "traefik.http.routers.reactive-web-www.entrypoints=websecure"
+      - "traefik.http.routers.reactive-web-www.tls.certresolver=le"
+      - "traefik.http.routers.reactive-web-www.middlewares=reactive-www-redirect@docker"
+      - "traefik.http.routers.reactive-web-www.service=reactive-web"
 
 networks:
   edge-traefik:
