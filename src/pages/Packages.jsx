@@ -1,3 +1,4 @@
+import Seo from "../components/common/Seo";
 import PriceCard from "../components/common/PriceCard";
 import { PLANS } from "../data/plans";
 import { NOTES } from "../data/notes";
@@ -5,6 +6,11 @@ import { NOTES } from "../data/notes";
 function Packages() {
   return (
     <>
+      <Seo
+        path="/packages"
+        title="Website Packages & Pricing"
+        description="Straightforward website packages for small businesses: a one-time build fee plus monthly hosting and upkeep. Compare the Launch, Grow, and Scale plans and pick a starting point."
+      />
       <section className="rx-section" style={{ paddingBottom: 60 }}>
         <div className="rx-wrap">
           <div className="rx-eyebrow">packages</div>

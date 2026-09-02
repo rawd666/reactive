@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
+import Seo from "../components/common/Seo";
 
 function ThankYou() {
   const location = useLocation();
@@ -7,6 +8,7 @@ function ThankYou() {
 
   return (
     <section className="rx-section" style={{ borderBottom: "none" }}>
+      <Seo path="/checkout/thank-you" title="Thank You" description="Your Reactive package purchase is confirmed." noindex />
       <div className="rx-wrap rx-thank-you">
         <CheckCircle size={48} color="var(--color-pink)" />
         <h1 className="rx-h1" style={{ fontSize: "clamp(34px,5vw,56px)", marginTop: 24 }}>

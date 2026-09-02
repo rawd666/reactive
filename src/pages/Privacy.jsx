@@ -1,8 +1,15 @@
+import Seo from "../components/common/Seo";
+
 export const PRIVACY_VERSION = "2026-08-26";
 
 function Privacy() {
   return (
     <section className="rx-section" style={{ borderBottom: "none" }}>
+      <Seo
+        path="/privacy"
+        title="Privacy Policy"
+        description="How Reactive collects, uses, and protects the information you submit through this site."
+      />
       <div className="rx-wrap">
         <div className="rx-eyebrow">legal</div>
         <h1 className="rx-h1" style={{ fontSize: "clamp(34px,5vw,56px)" }}>

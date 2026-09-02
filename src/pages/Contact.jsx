@@ -1,9 +1,15 @@
+import Seo from "../components/common/Seo";
 import ContactForm from "../components/common/ContactForm";
 import { Mail, Clock, Globe } from "lucide-react";
 
 function Contact() {
   return (
     <section className="rx-section" style={{ borderBottom: "none" }}>
+      <Seo
+        path="/contact"
+        title="Contact"
+        description="Tell Reactive about your business and what you need your website to do. Every message is read personally, with a reply within 1–2 business days. Working with clients remotely across the US."
+      />
       <div className="rx-wrap rx-split-grid">
         <div>
           <div className="rx-eyebrow">get in touch</div>

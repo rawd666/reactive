@@ -27,15 +27,17 @@ function App() {
     <div className="reactive-root">
       <ScrollToTop />
       <Nav />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/packages" element={<Packages />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/checkout/thank-you" element={<ThankYou />} />
-        <Route path="/checkout/:planId" element={<Checkout />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/privacy" element={<Privacy />} />
-      </Routes>
+      <main>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/packages" element={<Packages />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/checkout/thank-you" element={<ThankYou />} />
+          <Route path="/checkout/:planId" element={<Checkout />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+        </Routes>
+      </main>
       <Footer />
     </div>
   );

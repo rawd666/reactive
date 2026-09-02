@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Check } from "lucide-react";
+import Seo from "../components/common/Seo";
 import { PLANS } from "../data/plans";
 import { TERMS_VERSION } from "./Terms";
 import { PRIVACY_VERSION } from "./Privacy";
@@ -16,6 +17,7 @@ function Checkout() {
   if (!plan) {
     return (
       <section className="rx-section" style={{ borderBottom: "none" }}>
+        <Seo path="/checkout" title="Checkout" description="Complete your Reactive package purchase." noindex />
         <div className="rx-wrap" style={{ textAlign: "center" }}>
           <h1 className="rx-h1" style={{ fontSize: "clamp(28px,4vw,44px)" }}>
             Plan not found
@@ -33,6 +35,7 @@ function Checkout() {
 
   return (
     <section className="rx-section" style={{ borderBottom: "none" }}>
+      <Seo path="/checkout" title="Checkout" description="Complete your Reactive package purchase." noindex />
       <div className="rx-wrap rx-split-grid">
         <div>
           <div className="rx-eyebrow">checkout</div>

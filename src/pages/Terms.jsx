@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import Seo from "../components/common/Seo";
 import { PLANS } from "../data/plans";
 
 export const TERMS_VERSION = "2026-08-19";
@@ -6,6 +7,11 @@ export const TERMS_VERSION = "2026-08-19";
 function Terms() {
   return (
     <section className="rx-section" style={{ borderBottom: "none" }}>
+      <Seo
+        path="/terms"
+        title="Terms & Conditions"
+        description="The terms that govern website projects purchased through Reactive, including scope, fees, ownership, and support."
+      />
       <div className="rx-wrap">
         <div className="rx-eyebrow">legal</div>
         <h1 className="rx-h1" style={{ fontSize: "clamp(34px,5vw,56px)" }}>

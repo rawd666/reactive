@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import Seo from "../components/common/Seo";
 import CodeWindow from "../components/common/CodeWindow";
 import { REASONS } from "../data/reasons";
 import { FEATURES } from "../data/features";
@@ -9,6 +10,11 @@ function Home() {
 
   return (
     <>
+      <Seo
+        path="/"
+        title="Custom React Websites for Small Businesses"
+        description="Reactive designs and builds fast, custom React websites for small and new businesses across the US. No templates — booking systems, e-commerce, animations, and dashboards built around your business."
+      />
       <section className="rx-section" style={{ paddingTop: 96 }}>
         <div className="rx-wrap rx-hero-grid">
           <div>
