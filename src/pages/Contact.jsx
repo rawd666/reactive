@@ -1,6 +1,6 @@
 import Seo from "../components/common/Seo";
 import ContactForm from "../components/common/ContactForm";
-import { Mail, Clock, Globe } from "lucide-react";
+import { Mail, Phone, Clock, Globe } from "lucide-react";
 
 function Contact() {
   return (
@@ -29,6 +29,13 @@ function Contact() {
               <div>
                 <div className="rx-contact-label rx-mono">email</div>
                 <a href="mailto:rawd@reactiveweb.dev">rawd@reactiveweb.dev</a>
+              </div>
+            </div>
+            <div className="rx-contact-info-row">
+              <Phone size={18} />
+              <div>
+                <div className="rx-contact-label rx-mono">phone</div>
+                <a href="tel:+19498830458">+1 (949) 883-0458</a>
               </div>
             </div>
             <div className="rx-contact-info-row">
