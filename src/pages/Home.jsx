@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Seo from "../components/common/Seo";
 import CodeWindow from "../components/common/CodeWindow";
 import ProjectPreview from "../components/common/ProjectPreview";
+import TypedWord from "../components/common/TypedWord";
 import { REASONS } from "../data/reasons";
 import { FEATURES } from "../data/features";
 import { PROCESS } from "../data/process";
@@ -24,8 +25,8 @@ function Home() {
           <div>
             <div className="rx-eyebrow">built by one developer, for businesses just getting started</div>
             <h1 className="rx-h1">
-              A website that moves
-              <br />
+              A website that
+              <TypedWord />
               as fast as your business does.
             </h1>
             <p className="rx-lead" style={{ marginTop: 24 }}>

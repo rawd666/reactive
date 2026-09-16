@@ -58,6 +58,15 @@ body {
 .rx-h1{font-size:clamp(36px,6vw,64px);}
 .rx-h2{font-size:clamp(28px,4vw,44px);}
 .rx-h3{font-size:20px;}
+.rx-typed-line{display:block;min-height:1em;}
+.rx-type-cursor{
+  display:inline-block;width:0.36em;height:0.75em;background:var(--color-pink);
+  margin-left:0.1em;vertical-align:-0.02em;animation:rx-blink 1.1s steps(1) infinite;
+}
+.rx-sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
 .reactive-root p{color:#b0b0b0;font-weight:300;margin:0;}
 .rx-lead{font-size:clamp(17px,2vw,20px);color:var(--color-text-body);max-width:640px;}
 
@@ -223,7 +232,7 @@ body {
 .rx-foot-links a:hover{color:var(--color-pink);}
 
 @media (prefers-reduced-motion: reduce){
-  .rx-cursor{animation:none;opacity:1;}
+  .rx-cursor,.rx-type-cursor{animation:none;opacity:1;}
 }
 
 /* ---------- PROJECT PREVIEW ---------- */
