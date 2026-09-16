@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Seo from "../components/common/Seo";
 import CodeWindow from "../components/common/CodeWindow";
+import ProjectPreview from "../components/common/ProjectPreview";
 import { REASONS } from "../data/reasons";
 import { FEATURES } from "../data/features";
 import { PROCESS } from "../data/process";
+import { PROJECTS } from "../data/projects";
 
 function Home() {
   const navigate = useNavigate();
+  const [expandedProject, setExpandedProject] = useState(null);
 
   return (
     <>
@@ -39,6 +43,30 @@ function Home() {
             </div>
           </div>
           <CodeWindow />
+        </div>
+      </section>
+
+      <section className="rx-section">
+        <div className="rx-wrap rx-split-grid">
+          <div>
+            <div className="rx-eyebrow">previous work</div>
+            <h2 className="rx-h2">A site built exactly like this.</h2>
+            <p className="rx-lead" style={{ marginTop: 16 }}>
+              Click the preview to open the live site in a new tab, or use the expand icon to
+              scroll through the full homepage without leaving this page.
+            </p>
+          </div>
+          <div className="rx-preview-callout-wrap">
+            {PROJECTS.map((project) => (
+              <ProjectPreview
+                key={project.url}
+                project={project}
+                expanded={expandedProject === project.url}
+                onExpand={() => setExpandedProject(project.url)}
+                onClose={() => setExpandedProject(null)}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -141,7 +169,7 @@ function Home() {
         </div>
       </section>
 
-      <section className="rx-section" style={{ borderBottom: "none" }}>
+      <section className="rx-section">
         <div className="rx-wrap rx-cta-banner">
           <h2 className="rx-h2">Ready to build something real?</h2>
           <p className="rx-lead" style={{ margin: "16px auto 32px" }}>
