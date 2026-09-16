@@ -5,7 +5,6 @@ import CodeWindow from "../components/common/CodeWindow";
 import ProjectPreview from "../components/common/ProjectPreview";
 import TypedWord from "../components/common/TypedWord";
 import { REASONS } from "../data/reasons";
-import { FEATURES } from "../data/features";
 import { PROCESS } from "../data/process";
 import { PROJECTS } from "../data/projects";
 
@@ -90,34 +89,6 @@ function Home() {
                 <p>{r.body}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="rx-section">
-        <div className="rx-wrap rx-split-grid">
-          <div>
-            <div className="rx-eyebrow">how it's built</div>
-            <h2 className="rx-h2">
-              Built with React.
-              <br />
-              That means no limits.
-            </h2>
-          </div>
-          <div>
-            <p className="rx-lead">
-              Most small-business websites are assembled from page builders. Fine for a basic
-              brochure, but they hit a wall fast. I build every site from scratch in React, which
-              means the site is made of real, custom components instead of pre-made blocks.
-            </p>
-            <ul className="rx-feature-list">
-              {FEATURES.map((f, i) => (
-                <li key={i}>
-                  <span className="rx-bracket-pink rx-mono">&lt;/&gt;</span>
-                  {f}
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </section>
