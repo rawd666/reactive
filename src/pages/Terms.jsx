@@ -6,7 +6,7 @@ export const TERMS_VERSION = "2026-08-19";
 
 function Terms() {
   return (
-    <section className="rx-section" style={{ borderBottom: "none" }}>
+    <section className="rx-section">
       <Seo
         path="/terms"
         title="Terms & Conditions"

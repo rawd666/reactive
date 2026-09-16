@@ -4,7 +4,7 @@ export const PRIVACY_VERSION = "2026-08-26";
 
 function Privacy() {
   return (
-    <section className="rx-section" style={{ borderBottom: "none" }}>
+    <section className="rx-section">
       <Seo
         path="/privacy"
         title="Privacy Policy"

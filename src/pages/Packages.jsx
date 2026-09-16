@@ -36,7 +36,7 @@ function Packages() {
         </div>
       </section>
 
-      <section className="rx-section" style={{ borderBottom: "none" }}>
+      <section className="rx-section">
         <div className="rx-wrap">
           <div className="rx-eyebrow">good to know</div>
           <h2 className="rx-h2" style={{ maxWidth: 640 }}>

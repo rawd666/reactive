@@ -7,7 +7,7 @@ function ThankYou() {
   const planName = location.state?.planName;
 
   return (
-    <section className="rx-section" style={{ borderBottom: "none" }}>
+    <section className="rx-section">
       <Seo path="/checkout/thank-you" title="Thank You" description="Your Reactive package purchase is confirmed." noindex />
       <div className="rx-wrap rx-thank-you">
         <CheckCircle size={48} color="var(--color-pink)" />

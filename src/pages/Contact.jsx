@@ -4,7 +4,7 @@ import { Mail, Phone, Clock, Globe } from "lucide-react";
 
 function Contact() {
   return (
-    <section className="rx-section" style={{ borderBottom: "none" }}>
+    <section className="rx-section">
       <Seo
         path="/contact"
         title="Contact"

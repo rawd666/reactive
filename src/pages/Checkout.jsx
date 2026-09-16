@@ -16,7 +16,7 @@ function Checkout() {
 
   if (!plan) {
     return (
-      <section className="rx-section" style={{ borderBottom: "none" }}>
+      <section className="rx-section">
         <Seo path="/checkout" title="Checkout" description="Complete your Reactive package purchase." noindex />
         <div className="rx-wrap" style={{ textAlign: "center" }}>
           <h1 className="rx-h1" style={{ fontSize: "clamp(28px,4vw,44px)" }}>
@@ -34,7 +34,7 @@ function Checkout() {
   }
 
   return (
-    <section className="rx-section" style={{ borderBottom: "none" }}>
+    <section className="rx-section">
       <Seo path="/checkout" title="Checkout" description="Complete your Reactive package purchase." noindex />
       <div className="rx-wrap rx-split-grid">
         <div>
