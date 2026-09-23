@@ -4,7 +4,7 @@ import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Check } from "lucide-react";
 import Seo from "../components/common/Seo";
 import { PLANS } from "../data/plans";
-import { TERMS_VERSION } from "./Terms";
+import { TERMS_VERSION } from "../data/terms";
 import { PRIVACY_VERSION } from "./Privacy";
 
 function Checkout() {
@@ -13,6 +13,12 @@ function Checkout() {
   const plan = PLANS.find((p) => p.id === planId);
   const [status, setStatus] = useState({ loading: false, error: "" });
   const [agreed, setAgreed] = useState(false);
+  // PayPal returns the subscriber's personal name and email, never their business
+  // name — so it's collected here and lands on the client record at activation.
+  const [businessName, setBusinessName] = useState("");
+  // Separate from the T&Cs: this is the individually negotiated agreement sent
+  // to the client by email, which can restate scope for their project.
+  const [agreedContract, setAgreedContract] = useState(false);
 
   if (!plan) {
     return (
@@ -79,6 +85,28 @@ function Checkout() {
             <p style={{ color: "red", fontSize: 14, marginBottom: 16 }}>{status.error}</p>
           )}
 
+          <label style={{ display: "block", marginBottom: 20 }}>
+            <span
+              style={{
+                display: "block",
+                fontSize: 13,
+                color: "var(--color-text-body)",
+                marginBottom: 6,
+              }}
+            >
+              Business name{" "}
+              <span style={{ color: "var(--color-gray-mid)" }}>(optional)</span>
+            </span>
+            <input
+              className="rx-field-input"
+              type="text"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="So I know who the project is for"
+              disabled={status.loading}
+            />
+          </label>
+
           <label className="rx-terms-check">
             <input
               type="checkbox"
@@ -99,6 +127,26 @@ function Checkout() {
             </span>
           </label>
 
+          <label className="rx-terms-check">
+            <input
+              type="checkbox"
+              checked={agreedContract}
+              onChange={(e) => setAgreedContract(e.target.checked)}
+              disabled={status.loading}
+            />
+            <span>
+              I have received the project agreement for this package by email, read it, and agree
+              to it, including the scope of work and any terms specific to my project.
+              <span style={{ display: "block", marginTop: 6, color: "var(--color-gray-mid)" }}>
+                Haven't received one? Please{" "}
+                <Link to="/contact" target="_blank" rel="noopener noreferrer">
+                  get in touch
+                </Link>{" "}
+                before paying.
+              </span>
+            </span>
+          </label>
+
           <PayPalScriptProvider
             options={{
               "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
@@ -109,7 +157,7 @@ function Checkout() {
           >
             <PayPalButtons
               style={{ label: "subscribe" }}
-              disabled={status.loading || !agreed}
+              disabled={status.loading || !agreed || !agreedContract}
               createSubscription={(data, actions) =>
                 actions.subscription.create({ plan_id: plan.planId })
               }
@@ -122,6 +170,8 @@ function Checkout() {
                     body: JSON.stringify({
                       subscriptionID: data.subscriptionID,
                       planId: plan.id,
+                      businessName,
+                      agreedToContract: agreedContract,
                       agreedToTerms: agreed,
                       termsVersion: TERMS_VERSION,
                       agreedToPrivacy: agreed,

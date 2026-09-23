@@ -2,7 +2,7 @@ export const PLANS = [
   {
     id: "launch",
     name: "Launch",
-    planId: import.meta.env.VITE_PAYPAL_PLAN_LAUNCH,
+    planId: import.meta.env?.VITE_PAYPAL_PLAN_LAUNCH,
     sub: "For a new business that needs a clean, credible first site.",
     price: "$800",
     priceUnit: "one-time",
@@ -21,7 +21,7 @@ export const PLANS = [
   {
     id: "grow",
     name: "Grow",
-    planId: import.meta.env.VITE_PAYPAL_PLAN_GROW,
+    planId: import.meta.env?.VITE_PAYPAL_PLAN_GROW,
     sub: "For a business ready to show up like the real thing.",
     price: "$1,500",
     priceUnit: "one-time",
@@ -42,7 +42,7 @@ export const PLANS = [
   {
     id: "scale",
     name: "Scale",
-    planId: import.meta.env.VITE_PAYPAL_PLAN_SCALE,
+    planId: import.meta.env?.VITE_PAYPAL_PLAN_SCALE,
     sub: "For a business that needs the site to actually do things.",
     price: "$2,800+",
     priceUnit: "starting at, one-time",

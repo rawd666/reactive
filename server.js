@@ -5,8 +5,12 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import adminRouter from './server/admin.js';
+import { registerClient } from './server/db.js';
+import { planMeta } from './server/plan-meta.js';
+import { initAdminConfig } from './server/auth.js';
 
-dotenv.config(); // Load environment variables from .env file
+dotenv.config({ quiet: true }); // Load environment variables from .env file
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, 'dist');
@@ -20,13 +24,29 @@ app.set('trust proxy', 1);
 // Only the site itself (and any extra origins set via ALLOWED_ORIGINS) may call these APIs.
 // Requests with no Origin header (curl, server-to-server) are left unblocked since they aren't
 // the browser cross-origin case CORS protects against.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://reactiveweb.dev')
   .split(',')
-  .map((o) => o.trim());
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+// In dev the browser talks to Vite on 5173 and Vite proxies to this server, forwarding
+// the original Origin — so localhost has to be allowed or every form and the admin
+// sign-in gets a 403. Any port, since Vite moves to 5174+ when 5173 is taken.
+// Never in production: there, the only allowed origins are the configured ones.
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  return !IS_PRODUCTION && LOCALHOST_ORIGIN.test(origin);
+}
 
 app.use(cors({
+  credentials: true, // the admin session cookie rides on these requests
   origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -45,9 +65,13 @@ const PLAN_ID_MAP = {
   scale: process.env.VITE_PAYPAL_PLAN_SCALE,
 };
 
-// Tracks subscription IDs that have already triggered activation emails, so a replayed
-// request can't resend them. Resets on server restart; fine at this app's scale/traffic.
-const activatedSubscriptionIDs = new Set();
+// Replay protection now lives in the database: clients.subscription_id is UNIQUE, so a
+// repeated activation finds the existing row instead of registering or emailing twice.
+// That also survives a restart, which the previous in-memory Set did not.
+
+// Seeds the admin login when .env doesn't set one, so /admin always works.
+initAdminConfig();
+app.use('/api/admin', adminRouter);
 
 const activateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -64,6 +88,11 @@ const contactLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again later.' },
 });
+
+// The address clients see in their inbox. Gmail silently rewrites this to the
+// authenticated account UNLESS the address is verified under
+// Gmail → Settings → Accounts → "Send mail as". Override with MAIL_FROM in .env.
+const MAIL_FROM = process.env.MAIL_FROM || 'Reactive <rawd@reactiveweb.dev>';
 
 // Configure the email transporter using Gmail
 const transporter = nodemailer.createTransport({
@@ -96,7 +125,7 @@ async function getPayPalAccessToken() {
 
 // Confirms a subscription is really active with PayPal before treating the checkout as paid
 app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
-  const { subscriptionID, planId, agreedToTerms, termsVersion, agreedToPrivacy, privacyVersion } = req.body;
+  const { subscriptionID, planId, agreedToTerms, termsVersion, agreedToPrivacy, privacyVersion, businessName, agreedToContract } = req.body;
 
   if (!subscriptionID || !planId) {
     return res.status(400).json({ error: 'Missing subscription details' });
@@ -110,8 +139,8 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
     return res.status(400).json({ error: 'You must agree to the Privacy Policy to subscribe' });
   }
 
-  if (activatedSubscriptionIDs.has(subscriptionID)) {
-    return res.status(200).json({ message: 'Subscription already activated' });
+  if (agreedToContract !== true) {
+    return res.status(400).json({ error: 'You must confirm the project agreement to subscribe' });
   }
 
   try {
@@ -134,22 +163,41 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Subscription plan does not match the requested package' });
     }
 
-    // Mark as activated before sending mail so two near-simultaneous requests for the same
-    // subscription can't both slip past the check above and double-send.
-    if (activatedSubscriptionIDs.has(subscriptionID)) {
-      return res.status(200).json({ message: 'Subscription already activated' });
-    }
-    activatedSubscriptionIDs.add(subscriptionID);
-
     const subscriberEmail = subscription.subscriber?.email_address;
     const subscriberName = subscription.subscriber?.name?.given_name || 'there';
+    const fullName = [
+      subscription.subscriber?.name?.given_name,
+      subscription.subscriber?.name?.surname,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const meta = planMeta(planId);
+
+    // Registering before sending mail is what prevents a double-send: the UNIQUE
+    // constraint on subscription_id makes the second concurrent request return created=false.
+    const { client, created } = registerClient({
+      subscriptionId: subscriptionID,
+      email: subscriberEmail || 'unknown',
+      contactName: fullName || null,
+      businessName: typeof businessName === 'string' ? businessName.trim() || null : null,
+      planId,
+      termsVersion,
+      privacyVersion,
+      revisionsIncluded: meta.revisionRounds,
+      supportDays: meta.supportDays,
+      contractAgreed: agreedToContract === true,
+    });
+
+    if (!created) {
+      return res.status(200).json({ message: 'Subscription already activated' });
+    }
 
     transporter.sendMail(
       {
-        from: process.env.GMAIL_USER,
+        from: MAIL_FROM,
         to: process.env.GMAIL_USER,
-        subject: `New subscription: ${planId}`,
-        text: `A new subscription was confirmed.\n\nPlan: ${planId}\nSubscription ID: ${subscriptionID}\nSubscriber email: ${subscriberEmail || 'unknown'}\n\nTerms & Conditions accepted: yes (version ${termsVersion})\nPrivacy Policy accepted: yes (version ${privacyVersion})\nAccepted at: ${new Date().toISOString()}\nRequest IP: ${req.ip}`,
+        subject: `New subscription: ${planId} (${client.client_code})`,
+        text: `A new subscription was confirmed and registered.\n\nClient ID: ${client.client_code}\nBusiness: ${client.business_name || '(not provided — set it in /admin)'}\nPlan: ${planId}\nSubscription ID: ${subscriptionID}\nSubscriber: ${fullName || 'unknown'}\nSubscriber email: ${subscriberEmail || 'unknown'}\n\nRevisions included: ${meta.revisionRounds ?? 'unlimited'}\nSupport ends: ${client.support_ends_at || 'n/a'}\n\nTerms & Conditions accepted: yes (version ${termsVersion})\nPrivacy Policy accepted: yes (version ${privacyVersion})\nProject agreement confirmed: yes\nAccepted at: ${new Date().toISOString()}\nRequest IP: ${req.ip}`,
       },
       (error) => {
         if (error) console.error('Failed to send owner notification email:', error);
@@ -159,10 +207,30 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
     if (subscriberEmail) {
       transporter.sendMail(
         {
-          from: process.env.GMAIL_USER,
+          from: MAIL_FROM,
           to: subscriberEmail,
-          subject: `You're subscribed to the ${planId} plan`,
-          text: `Hi ${subscriberName},\n\nThanks for subscribing! Your payment went through and your ${planId} plan is now active.\n\nI'll be in touch within 1-2 business days to kick things off. If you have any questions in the meantime, just reply to this email.\n\nThanks,\nRawd`,
+          subject: `Payment confirmed — your client ID is ${client.client_code}`,
+          text: [
+            `Hi ${subscriberName},`,
+            ``,
+            `Thanks — your payment went through. This email is your receipt.`,
+            ``,
+            `  Client ID         ${client.client_code}`,
+            `  Package           ${meta.name || planId}`,
+            `  Setup fee         ${meta.price || '—'} (paid)`,
+            `  Hosting & upkeep  ${meta.monthly || '—'}/month`,
+            `  Date              ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+            `  Subscription ID   ${subscriptionID}`,
+            ``,
+            `Keep your client ID somewhere handy and quote it in any email about your`,
+            `project — it's how I pull up your build at a glance.`,
+            ``,
+            `I'll be in touch within 1-2 business days to get started. Any questions in`,
+            `the meantime, just reply to this email.`,
+            ``,
+            `Rawd`,
+            `Reactive · reactiveweb.dev`,
+          ].join('\n'),
         },
         (error) => {
           if (error) console.error('Failed to send customer confirmation email:', error);
@@ -211,4 +279,6 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(5173, () => console.log('Server running on port 5173'));
+// Configurable so `npm run dev` (Vite on 5173) and the API can run side by side locally.
+const PORT = process.env.PORT || 5173;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

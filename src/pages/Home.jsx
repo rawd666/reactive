@@ -16,8 +16,8 @@ function Home() {
     <>
       <Seo
         path="/"
-        title="Custom React Websites for Small Businesses"
-        description="Reactive designs and builds fast, custom React websites for small and new businesses across the US. No templates — booking systems, e-commerce, animations, and dashboards built around your business."
+        title="React Websites for Small Businesses"
+        description="Reactive designs and builds fast, custom React websites for small and new businesses across the US. No templates: booking systems, e-commerce, animations, and dashboards built around your business."
       />
       <section className="rx-section" style={{ paddingTop: 96 }}>
         <div className="rx-wrap rx-hero-grid">
@@ -31,7 +31,7 @@ function Home() {
             <p className="rx-lead" style={{ marginTop: 24 }}>
               I design and build custom websites with React. No drag-and-drop templates, no
               cookie-cutter layouts. If you can describe it, I can build it into your site: booking
-              systems, animations, dashboards, e-commerce, and so on.
+              systems, animations, dashboards, e-commerce, and more.
             </p>
             <div style={{ display: "flex", gap: 16, marginTop: 36, flexWrap: "wrap" }}>
               <button className="rx-btn rx-btn-primary" onClick={() => navigate("/packages")}>

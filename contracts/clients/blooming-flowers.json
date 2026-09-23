@@ -1,0 +1,19 @@
+{
+  "businessName": "Blooming Flowers",
+  "clientName": "Robinso Vasquez",
+  "email": "bloomingflowers.rv@gmail.com",
+  "projectSite": "bloomingflowersla.com",
+  "effectiveDate": "On the date payment is completed",
+  "targetLaunch": "One month after the payment date",
+  "scope": [
+    "Unlimited pages",
+    "Custom React build, no templates",
+    "Mobile-responsive design",
+    "Contact form + booking or inquiry form",
+    "On-page SEO + analytics setup",
+    "Basic content editing so you're not locked out",
+    "Unlimited revisions during the first month",
+    "1 month of post-launch support"
+  ],
+  "addendum": []
+}

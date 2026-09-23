@@ -32,6 +32,38 @@ npm run dev
 ```
 Visit `http://localhost:5173`.
 
+`npm run dev` starts both halves: Vite on 5173 and the API on 5174 (Vite proxies
+`/api` to it). Run them separately with `npm run dev:web` / `npm run dev:api`.
+
+No `.env` is needed to try it out — the PayPal and email routes stay inert
+without their keys, everything else works.
+
+## Admin
+
+`/admin` is an owner-only dashboard for client records. The server seeds a login
+on first boot and prints it when you run `npm run dev`:
+
+```
+username   admin
+password   change-me-in-env
+```
+
+These are public on purpose, so a fresh clone can actually open the dashboard.
+To use your own, set them in `.env` and restart:
+
+```bash
+ADMIN_USER=you
+ADMIN_PASSWORD=something-long
+```
+
+Prefer to keep the password itself off disk? `npm run admin-password "your-password" you`
+prints an `ADMIN_PASSWORD_HASH` (and a `SESSION_SECRET`) to paste into `.env` instead.
+A session secret is generated into `DATA_DIR/session-secret` if you don't set one,
+so sign-ins survive a restart.
+
+**Change the seeded login before putting the site on a public host** — it's in
+this README.
+
 ## Build for production
 
 ```bash

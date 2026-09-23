@@ -29,3 +29,8 @@ dist-ssr
 
 # Local-only Compose overrides
 docker-compose.override.yml
+
+# Local client database (production lives in the reactive-data docker volume).
+# contracts/ is deliberately NOT ignored — the terms archive is the record of
+# what each client signed.
+data/

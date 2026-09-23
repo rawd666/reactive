@@ -31,7 +31,12 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY server.js ./
+COPY server ./server
 COPY --from=build /app/dist ./dist
+
+# Client database lives here; docker-compose mounts a named volume over it so the
+# records survive image rebuilds.
+RUN mkdir -p /app/data
 
 RUN chown -R node:node /app
 USER node

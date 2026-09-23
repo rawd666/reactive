@@ -4,10 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.js",
+    "dev:web": "node scripts/dev.js --web",
+    "dev:api": "node scripts/dev.js --api",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "contract": "node scripts/make-contract.js",
+    "admin-password": "node scripts/admin-password.js"
   },
   "dependencies": {
     "@paypal/react-paypal-js": "^10.1.2",
@@ -30,6 +34,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
+    "pdfkit": "^0.20.2",
     "vite": "^8.1.1"
   }
 }

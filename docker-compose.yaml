@@ -12,6 +12,12 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DATA_DIR: /app/data
+      NODE_ENV: production
+    volumes:
+      # Client records. Without this the database is lost on every rebuild.
+      - reactive-data:/app/data
     networks:
       - edge-traefik
     labels:
@@ -33,6 +39,9 @@ services:
       - "traefik.http.routers.reactive-web-www.tls.certresolver=le"
       - "traefik.http.routers.reactive-web-www.middlewares=reactive-www-redirect@docker"
       - "traefik.http.routers.reactive-web-www.service=reactive-web"
+
+volumes:
+  reactive-data:
 
 networks:
   edge-traefik:
