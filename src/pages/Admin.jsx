@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { Users, LogOut } from "lucide-react";
 import Seo from "../components/common/Seo";
 
 // Owner-only dashboard. Nothing here is secret on its own — the protection is
 // server-side: every /api/admin/* data route returns 401 without a valid session
 // cookie. This page just renders what the API is willing to hand over.
+//
+// Layout: a left-hand menu (SECTIONS, further down) beside the active panel.
+// Each section is its own route under /admin, so a section can be linked to,
+// reloaded, and reached with the back button.
 
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -183,7 +189,17 @@ function ClientRow({ client, onChange }) {
   );
 }
 
-function Dashboard({ onSignedOut }) {
+// Heading every panel opens with, so sections stay visually consistent.
+function PanelHeading({ title, note }) {
+  return (
+    <header className="rx-admin-panel-head">
+      <h1 className="rx-h2">{title}</h1>
+      {note && <p className="rx-admin-panel-note">{note}</p>}
+    </header>
+  );
+}
+
+function ClientsPanel({ onSignedOut }) {
   const [clients, setClients] = useState(null);
   const [error, setError] = useState("");
 
@@ -211,11 +227,6 @@ function Dashboard({ onSignedOut }) {
     };
   }, [onSignedOut]);
 
-  async function signOut() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    onSignedOut();
-  }
-
   function replace(updated) {
     setClients((prev) =>
       prev.map((c) => (c.client_code === updated.client_code ? updated : c))
@@ -224,23 +235,10 @@ function Dashboard({ onSignedOut }) {
 
   return (
     <>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          flexWrap: "wrap",
-          gap: 16,
-        }}
-      >
-        <div>
-          <div className="rx-eyebrow">admin</div>
-          <h1 className="rx-h2">Clients</h1>
-        </div>
-        <button className="rx-btn rx-btn-outline" onClick={signOut}>
-          Sign out
-        </button>
-      </div>
+      <PanelHeading
+        title="Clients"
+        note="Every business with a subscription — current and past."
+      />
 
       {error && <p style={{ color: "var(--color-pink)", marginTop: 24 }}>{error}</p>}
 
@@ -283,9 +281,82 @@ function Dashboard({ onSignedOut }) {
   );
 }
 
+// The left-hand menu. One entry per section — adding a section means adding a
+// line here and its panel component; the menu item, the route (/admin/<id>) and
+// the default landing section all follow from this list.
+const SECTIONS = [
+  { id: "clients", label: "Clients", icon: Users, Panel: ClientsPanel },
+];
+
+function Menu({ onSignOut }) {
+  return (
+    <aside className="rx-admin-sidebar">
+      <div className="rx-eyebrow">admin</div>
+
+      <nav className="rx-admin-menu" aria-label="Admin sections">
+        {SECTIONS.map(({ id, label, icon: Icon }) => (
+          <NavLink
+            key={id}
+            to={`/admin/${id}`}
+            className={({ isActive }) =>
+              `rx-admin-menu-item${isActive ? " active" : ""}`
+            }
+          >
+            <Icon size={16} aria-hidden="true" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <button className="rx-admin-signout" onClick={onSignOut}>
+        <LogOut size={16} aria-hidden="true" />
+        Sign out
+      </button>
+    </aside>
+  );
+}
+
+function UnknownSection() {
+  return (
+    <>
+      <PanelHeading title="Not found" note="That section doesn't exist yet." />
+      <p style={{ marginTop: 24 }}>
+        Pick one from the menu — or add it to SECTIONS in{" "}
+        <code className="rx-mono">src/pages/Admin.jsx</code>.
+      </p>
+    </>
+  );
+}
+
+function Dashboard({ onSignedOut }) {
+  async function signOut() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    onSignedOut();
+  }
+
+  return (
+    <div className="rx-admin-shell">
+      <Menu onSignOut={signOut} />
+
+      <div className="rx-admin-panel">
+        <Routes>
+          <Route index element={<Navigate to={SECTIONS[0].id} replace />} />
+          {SECTIONS.map(({ id, Panel }) => (
+            <Route key={id} path={id} element={<Panel onSignedOut={onSignedOut} />} />
+          ))}
+          <Route path="*" element={<UnknownSection />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
 function Admin() {
   const [signedIn, setSignedIn] = useState(null);
   const [seeded, setSeeded] = useState(false);
+
+  // Stable identity so the panels' fetch effects don't re-run on every render.
+  const handleSignedOut = useCallback(() => setSignedIn(false), []);
 
   useEffect(() => {
     fetch("/api/admin/session")
@@ -307,7 +378,7 @@ function Admin() {
       />
       <div className="rx-wrap">
         {signedIn === null ? null : signedIn ? (
-          <Dashboard onSignedOut={() => setSignedIn(false)} />
+          <Dashboard onSignedOut={handleSignedOut} />
         ) : (
           <Login onSignedIn={() => setSignedIn(true)} seeded={seeded} />
         )}
