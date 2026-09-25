@@ -141,8 +141,24 @@ body {
 .rx-btn-full{width:100%;justify-content:center;}
 
 /* ---------- HERO CODE WINDOW ---------- */
-.rx-hero-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:64px;align-items:center;}
-.rx-code-window{background:var(--color-gray-dark);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;box-shadow:0 40px 80px -30px rgba(255,31,125,0.15);}
+/* The ascii wave field sits behind the hero. It is masked so it blooms behind
+   the code window on the right and has faded out by the time it reaches the
+   headline, which keeps the copy at full contrast. */
+.rx-hero{position:relative;overflow:hidden;}
+.rx-ascii-waves{
+  position:absolute;inset:0;z-index:0;pointer-events:none;
+  mask-image:radial-gradient(115% 85% at 74% 48%,#000 0%,#000 38%,transparent 82%);
+}
+.rx-hero-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:64px;align-items:center;position:relative;z-index:1;}
+/* Same frosted-glass recipe as .rx-nav: the panel colour at 0.85 alpha over a
+   10px backdrop blur. rgba() rather than the token because a custom property
+   can't be given an alpha inline. (The build adds the -webkit- prefix.) */
+.rx-code-window{
+  background:rgba(22,22,22,0.85); /* --color-gray-dark */
+  backdrop-filter:blur(10px);
+  border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;
+  box-shadow:0 40px 80px -30px rgba(255,31,125,0.15);
+}
 .rx-code-bar{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid var(--color-border);}
 .rx-dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
 .rx-code-body{padding:24px 20px;font-size:13px;line-height:1.85;overflow-x:auto;color:#e4e4e4;white-space:pre;}
@@ -305,8 +321,11 @@ body {
 /* ---------- PROJECT PREVIEW ---------- */
 .rx-preview-callout-wrap{position:relative;width:100%;max-width:560px;}
 
+/* Frosted glass, same recipe as .rx-nav and .rx-code-window. */
 .rx-preview-card{
-  width:100%;background:var(--color-gray-dark);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  width:100%;background:rgba(22,22,22,0.85); /* --color-gray-dark */
+  backdrop-filter:blur(10px);
+  border:1px solid var(--color-border);border-radius:var(--radius-md);
   overflow:hidden;box-shadow:0 40px 80px -30px rgba(255,31,125,0.15);
   transition:transform .35s ease,box-shadow .35s ease;
 }

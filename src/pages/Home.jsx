@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Seo from "../components/common/Seo";
+import AsciiWaves from "../components/common/AsciiWaves";
 import CodeWindow from "../components/common/CodeWindow";
 import ProjectPreview from "../components/common/ProjectPreview";
 import TypedWord from "../components/common/TypedWord";
@@ -19,7 +20,8 @@ function Home() {
         title="React Websites for Small Businesses"
         description="Reactive designs and builds fast, custom React websites for small and new businesses across the US. No templates: booking systems, e-commerce, animations, and dashboards built around your business."
       />
-      <section className="rx-section" style={{ paddingTop: 96 }}>
+      <section className="rx-section rx-hero" style={{ paddingTop: 96 }}>
+        <AsciiWaves />
         <div className="rx-wrap rx-hero-grid">
           <div>
             <div className="rx-eyebrow">built by one developer, for businesses just getting started</div>
