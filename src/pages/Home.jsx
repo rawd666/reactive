@@ -20,7 +20,8 @@ function Home() {
         title="React Websites for Small Businesses"
         description="Reactive designs and builds fast, custom React websites for small and new businesses across the US. No templates: booking systems, e-commerce, animations, and dashboards built around your business."
       />
-      <section className="rx-section rx-hero" style={{ paddingTop: 96 }}>
+      {/* padding-top lives in .rx-hero — it has to account for the nav it tucks under */}
+      <section className="rx-section rx-hero">
         <AsciiWaves />
         <div className="rx-wrap rx-hero-grid">
           <div>

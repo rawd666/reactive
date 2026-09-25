@@ -30,6 +30,13 @@ body {
 
   --radius-sm:2px;
   --radius-md:6px;
+  --nav-height:76px;
+
+  /* Frosted glass, shared by the nav, the hero code window and the secondary
+     button so they stay identical. Lower the alpha to see more of what is
+     behind; the blur only reads where the backdrop has some contrast. */
+  --glass-bg:rgba(10,10,10,0.65);
+  --glass-blur:blur(10px);
   --max-width:1120px;
   --space-section:76px;
 
@@ -96,11 +103,11 @@ body {
 /* ---------- NAV ---------- */
 .rx-nav{
   position:sticky;top:0;z-index:100;
-  background:rgba(10,10,10,0.85);
-  backdrop-filter:blur(10px);
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-blur);
   border-bottom:1px solid var(--color-border);
 }
-.rx-nav-inner{display:flex;align-items:center;justify-content:space-between;height:76px;}
+.rx-nav-inner{display:flex;align-items:center;justify-content:space-between;height:var(--nav-height);}
 .rx-logo{font-family:var(--font-mono);font-size:18px;font-weight:500;display:flex;align-items:center;background:none;border:none;color:var(--color-white);padding:0;}
 .rx-logo .bracket{color:var(--color-pink);}
 .rx-cursor{display:inline-block;width:8px;height:16px;background:var(--color-pink);margin-left:4px;animation:rx-blink 1.1s steps(1) infinite;}
@@ -136,26 +143,35 @@ body {
    loaded too, if 800 still isn't enough. */
 .rx-btn-primary{background:var(--color-pink);color:var(--color-black);font-weight:800;}
 .rx-btn-primary:hover{background:var(--color-white);}
-.rx-btn-outline{border-color:var(--color-border);color:var(--color-white);}
+/* The secondary button is glass too, so it picks up whatever it sits over. */
+.rx-btn-outline{
+  border-color:var(--color-border);color:var(--color-white);
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-blur);
+}
 .rx-btn-outline:hover{border-color:var(--color-pink);color:var(--color-pink);}
 .rx-btn-full{width:100%;justify-content:center;}
 
 /* ---------- HERO CODE WINDOW ---------- */
-/* The ascii wave field sits behind the hero. It is masked so it blooms behind
-   the code window on the right and has faded out by the time it reaches the
-   headline, which keeps the copy at full contrast. */
-.rx-hero{position:relative;overflow:hidden;}
+/* The ascii wave field sits behind the hero. The section is pulled up under the
+   sticky nav (and pads itself back down) so the field starts at the very top of
+   the page — that is what gives the nav's own backdrop-filter something to blur.
+   Masked so it blooms behind the code window on the right and has faded out by
+   the time it reaches the headline, which keeps the copy at full contrast. */
+.rx-hero{
+  position:relative;overflow:hidden;
+  margin-top:calc(var(--nav-height) * -1);
+  padding-top:calc(96px + var(--nav-height));
+}
 .rx-ascii-waves{
   position:absolute;inset:0;z-index:0;pointer-events:none;
-  mask-image:radial-gradient(115% 85% at 74% 48%,#000 0%,#000 38%,transparent 82%);
+  mask-image:radial-gradient(120% 95% at 74% 42%,#000 0%,#000 44%,transparent 86%);
 }
 .rx-hero-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:64px;align-items:center;position:relative;z-index:1;}
-/* Same frosted-glass recipe as .rx-nav: the panel colour at 0.85 alpha over a
-   10px backdrop blur. rgba() rather than the token because a custom property
-   can't be given an alpha inline. (The build adds the -webkit- prefix.) */
+/* Exactly the nav's surface — same token, no grey tint of its own. */
 .rx-code-window{
-  background:rgba(22,22,22,0.85); /* --color-gray-dark */
-  backdrop-filter:blur(10px);
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-blur);
   border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;
   box-shadow:0 40px 80px -30px rgba(255,31,125,0.15);
 }
