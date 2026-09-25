@@ -28,6 +28,9 @@ function AsciiWaves({
   speed = 1,
   noiseScale = 1,
   intensity = 1,
+  // Fraction of the height over which the field fades out at the bottom, so it
+  // doesn't stop against the edge the hero's overflow:hidden clips it at.
+  fadeBottom = 0.34,
   angle = 45, // degrees; the direction the wave travels, so the bands run across it
   // How hard the bands snake along their own length. Past ~1.6 the bend cancels
   // the diagonal gradient and the bands flatten out into vertical stripes.
@@ -58,6 +61,7 @@ function AsciiWaves({
     let cellHeight = elementSize * 1.05;
     let columns = 0;
     let rows = 0;
+    let cssHeight = 0;
     let frame = 0;
     let running = false;
     let startedAt = performance.now();
@@ -85,6 +89,7 @@ function AsciiWaves({
       cellHeight = elementSize * 1.05;
       columns = Math.ceil(width / cellWidth) + 1;
       rows = Math.ceil(height / cellHeight) + 1;
+      cssHeight = height;
       return true;
     }
 
@@ -105,8 +110,26 @@ function AsciiWaves({
       const stepU = (cellWidth / WAVE_UNIT) * noiseScale * cosAngle;
       const stepV = (cellWidth / WAVE_UNIT) * noiseScale * sinAngle;
 
+      // Where the bottom fade starts, in CSS pixels.
+      const fadeFrom = cssHeight * (1 - Math.min(Math.max(fadeBottom, 0), 1));
+      const fadeSpan = cssHeight - fadeFrom;
+
       for (let row = 0; row < rows; row++) {
         const y = row * cellHeight;
+
+        // Fade the last rows out rather than letting the field stop dead
+        // against the edge the hero clips it at. Smoothstep so the end of the
+        // ramp isn't a visible line of its own.
+        let rowFade = 1;
+        if (fadeSpan > 0 && y > fadeFrom) {
+          const k = Math.min((y - fadeFrom) / fadeSpan, 1);
+          rowFade = 1 - k * k * (3 - 2 * k);
+          if (rowFade <= 0.01) break; // nothing below this is visible
+        }
+        // Alpha alone would fade in ~16px bands, one per row. Thinning the
+        // glyphs as well makes the field dissolve, which hides the banding.
+        const densityFade = 0.4 + 0.6 * rowFade;
+        ctx.globalAlpha = rowFade;
         const yUnit = (y / WAVE_UNIT) * noiseScale;
         let u = yUnit * sinAngle;
         let v = yUnit * cosAngle;
@@ -134,12 +157,14 @@ function AsciiWaves({
 
           // -1..1 → 0..1, then a gamma curve so the field stays mostly sparse
           // and only the crests reach the dense glyphs.
-          const level = Math.min(Math.max((value + 1) / 2, 0), 1) ** 1.6;
+          const level = (Math.min(Math.max((value + 1) / 2, 0), 1) ** 1.6) * densityFade;
           line += ramp[Math.min(ramp.length - 1, Math.floor(level * ramp.length))];
         }
 
         ctx.fillText(line, 0, y);
       }
+
+      ctx.globalAlpha = 1;
     }
 
     function loop(now) {
@@ -219,6 +244,7 @@ function AsciiWaves({
     speed,
     noiseScale,
     intensity,
+    fadeBottom,
     angle,
     twist,
     interactive,
