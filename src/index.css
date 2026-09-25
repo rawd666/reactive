@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Inter 700–900 is here for the pink buttons. A weight has to be listed in this
+   URL to exist: ask for one that isn't and the browser quietly falls back to the
+   nearest loaded weight (or fakes it), so the button looks unchanged. Listing a
+   weight is cheap — the font file is only downloaded if something renders in it. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 html, body, #root {
   margin: 0;
@@ -106,7 +110,7 @@ body {
 .rx-navlink{font-size:14px;font-weight:500;color:var(--color-gray-mid);position:relative;padding:6px 0;background:none;border:none;transition:color .2s ease;}
 .rx-navlink:hover,.rx-navlink.active{color:var(--color-white);}
 .rx-navlink.active::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--color-pink);}
-.rx-cta{background:var(--color-pink);color:var(--color-white);padding:10px 20px;border-radius:var(--radius-sm);font-weight:600;font-size:14px;border:none;transition:background .2s ease,color .2s ease;}
+.rx-cta{background:var(--color-pink);color:var(--color-black);padding:10px 20px;border-radius:var(--radius-sm);font-weight:800;font-size:14px;border:none;transition:background .2s ease,color .2s ease;}
 .rx-cta:hover{background:var(--color-white);color:var(--color-black);}
 
 .rx-navtoggle{display:none;background:none;border:1px solid var(--color-border);color:var(--color-white);width:40px;height:40px;border-radius:var(--radius-sm);align-items:center;justify-content:center;}
@@ -127,7 +131,10 @@ body {
 
 /* ---------- BUTTONS ---------- */
 .rx-btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15px;padding:14px 26px;border-radius:var(--radius-sm);transition:all .2s ease;border:1px solid transparent;background:none;}
-.rx-btn-primary{background:var(--color-pink);color:var(--color-black);}
+/* The pink buttons carry the loudest calls to action, so they sit well above the
+   outline ones (which stay at the .rx-btn 600). 900 is Inter's heaviest and is
+   loaded too, if 800 still isn't enough. */
+.rx-btn-primary{background:var(--color-pink);color:var(--color-black);font-weight:800;}
 .rx-btn-primary:hover{background:var(--color-white);}
 .rx-btn-outline{border-color:var(--color-border);color:var(--color-white);}
 .rx-btn-outline:hover{border-color:var(--color-pink);color:var(--color-pink);}

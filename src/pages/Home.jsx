@@ -29,8 +29,7 @@ function Home() {
               as fast as your business does.
             </h1>
             <p className="rx-lead" style={{ marginTop: 24 }}>
-              I design and build custom websites with React. No drag-and-drop templates, no
-              cookie-cutter layouts. If you can describe it, I can build it into your site: booking
+              I design and build custom websites with React. If you can describe it, I can build it into your site: booking
               systems, animations, dashboards, e-commerce, and more.
             </p>
             <div style={{ display: "flex", gap: 16, marginTop: 36, flexWrap: "wrap" }}>
@@ -77,9 +76,7 @@ function Home() {
             Your business is real. Your website should prove it.
           </h2>
           <p className="rx-lead" style={{ marginTop: 16 }}>
-            Social media accounts and marketplace listings are rented land. The platform sets the
-            rules, the algorithm decides who sees you, and the design looks like everyone else's. A
-            website is the one piece of your business that's fully yours.
+            A website is the one piece of your business that's fully yours.
           </p>
           <div className="rx-grid-3" style={{ marginTop: 56 }}>
             {REASONS.map((r) => (
@@ -103,7 +100,7 @@ function Home() {
               on their way up.
             </h2>
             <p className="rx-lead" style={{ marginTop: 20 }}>
-              I work best with new and early-stage businesses. The ones who know exactly where
+              I work best with growing and established businesses. The ones who know exactly where
               they're headed but haven't had a website that looks like it yet. That's the gap I
               close.
             </p>
