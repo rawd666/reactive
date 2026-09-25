@@ -55,14 +55,6 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(a, b);
 }
 
-// Compares two strings without leaking their length through timing, by hashing
-// both to a fixed size first.
-function safeEqual(a, b) {
-  const ha = crypto.createHash('sha256').update(String(a)).digest();
-  const hb = crypto.createHash('sha256').update(String(b)).digest();
-  return crypto.timingSafeEqual(ha, hb);
-}
-
 // --- configuration -------------------------------------------------------
 
 let config = null;
@@ -142,14 +134,9 @@ function getConfig() {
   return config || initAdminConfig();
 }
 
-/** True when the given username/password match the configured admin. */
-export function verifyCredentials(username, password) {
-  const { user, passwordHash } = getConfig();
-  // Both checks always run so a wrong username costs the same as a wrong password.
-  const userOk = safeEqual(String(username || '').trim().toLowerCase(), user.toLowerCase());
-  const passOk = verifyPassword(String(password || ''), passwordHash);
-  return userOk && passOk;
-}
+// Credentials are checked against the admin_users table — see users.js. This
+// module only knows how to hash, how to sign a cookie, and what .env says about
+// the master account.
 
 // --- session cookie ------------------------------------------------------
 
@@ -157,9 +144,12 @@ function sign(value, secret) {
   return crypto.createHmac('sha256', secret).update(value).digest('hex');
 }
 
-function makeToken(secret) {
+// The payload carries who is signed in as well as when the session ends, so
+// every request can be attributed to an account in the audit log. Both halves
+// are covered by the signature, so neither can be swapped.
+function makeToken(secret, userId) {
   const expiresAt = Date.now() + SESSION_HOURS * 3600 * 1000;
-  const payload = String(expiresAt);
+  const payload = `${userId}:${expiresAt}`;
   return `${payload}.${sign(payload, secret)}`;
 }
 
@@ -170,8 +160,11 @@ function readToken(token, secret) {
   const a = Buffer.from(signature, 'utf8');
   const b = Buffer.from(expected, 'utf8');
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  if (Number(payload) < Date.now()) return null;
-  return { expiresAt: Number(payload) };
+
+  const [userId, expiresAt] = payload.split(':');
+  if (!userId || !expiresAt) return null; // pre-multi-user cookie; make them sign in again
+  if (Number(expiresAt) < Date.now()) return null;
+  return { userId: Number(userId), expiresAt: Number(expiresAt) };
 }
 
 // Small cookie reader so this needs no cookie-parser dependency.
@@ -185,9 +178,9 @@ function readCookie(req, name) {
   return null;
 }
 
-export function issueSession(res) {
+export function issueSession(res, userId) {
   const { sessionSecret } = getConfig();
-  res.cookie(COOKIE_NAME, makeToken(sessionSecret), {
+  res.cookie(COOKIE_NAME, makeToken(sessionSecret, userId), {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -200,13 +193,9 @@ export function clearSession(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
-export function isAuthed(req) {
+/** The user id in the request's session cookie, or null. */
+export function sessionUserId(req) {
   const { sessionSecret } = getConfig();
-  return readToken(readCookie(req, COOKIE_NAME), sessionSecret) !== null;
-}
-
-// Express middleware guarding every admin data route.
-export function requireAdmin(req, res, next) {
-  if (!isAuthed(req)) return res.status(401).json({ error: 'Not signed in' });
-  next();
+  const token = readToken(readCookie(req, COOKIE_NAME), sessionSecret);
+  return token ? token.userId : null;
 }

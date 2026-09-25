@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { Users, LogOut } from "lucide-react";
+import { Users, UserCog, ScrollText, LogOut, Trash2, Plus } from "lucide-react";
 import Seo from "../components/common/Seo";
 
 // Owner-only dashboard. Nothing here is secret on its own — the protection is
-// server-side: every /api/admin/* data route returns 401 without a valid session
-// cookie. This page just renders what the API is willing to hand over.
+// server-side: every /api/admin/* route checks the signed-in user's permissions
+// and returns 401/403 on its own. This page just renders what the API is
+// willing to hand over, and hides the menu items it would refuse anyway.
 //
 // Layout: a left-hand menu (SECTIONS, further down) beside the active panel.
 // Each section is its own route under /admin, so a section can be linked to,
@@ -18,6 +19,43 @@ function fmtDate(iso) {
     month: "short",
     day: "numeric",
   });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function can(user, permission) {
+  if (!user) return false;
+  return user.isMaster || user.permissions.includes(permission);
+}
+
+// Turns "clients:write" into "clients · write" for the permission checkboxes.
+function permissionLabel(permission) {
+  return permission.replace(":", " · ");
+}
+
+async function api(path, options) {
+  const res = await fetch(`/api/admin${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || `Request failed (${res.status})`);
+    // The status rides along so callers can tell "session expired" (401) from
+    // "you're not allowed" (403) — the server's message alone doesn't say.
+    error.status = res.status;
+    throw error;
+  }
+  return data;
 }
 
 function Login({ onSignedIn, seeded }) {
@@ -38,7 +76,7 @@ function Login({ onSignedIn, seeded }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Sign-in failed");
-      onSignedIn();
+      onSignedIn(data.user);
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -281,20 +319,434 @@ function ClientsPanel({ onSignedOut }) {
   );
 }
 
+// --- users (master only) -------------------------------------------------
+
+function NewUserForm({ roles, onCreated }) {
+  const blank = { username: "", email: "", name: "", role: "telemarketer", password: "" };
+  const [form, setForm] = useState(blank);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const { user } = await api("/users", { method: "POST", body: JSON.stringify(form) });
+      setForm(blank);
+      onCreated(user);
+    } catch (err) {
+      setError(err.message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="rx-admin-newuser">
+      <input value={form.username} onChange={set("username")} placeholder="Username" required />
+      <input value={form.email} onChange={set("email")} type="email" placeholder="Email" />
+      <input value={form.name} onChange={set("name")} placeholder="Full name" />
+      <select value={form.role} onChange={set("role")}>
+        {roles
+          .filter((r) => r !== "master")
+          .map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+      </select>
+      <input
+        value={form.password}
+        onChange={set("password")}
+        type="password"
+        placeholder="Password (10+ chars)"
+        autoComplete="new-password"
+        required
+      />
+      <button type="submit" className="rx-btn rx-btn-outline rx-admin-add" disabled={busy}>
+        <Plus size={15} aria-hidden="true" />
+        {busy ? "Adding…" : "Add user"}
+      </button>
+      {error && <p className="rx-admin-error">{error}</p>}
+    </form>
+  );
+}
+
+function UserRow({ user, permissions, onChange, onDelete, isSelf }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function patch(body) {
+    setBusy(true);
+    setError("");
+    try {
+      const data = await api(`/users/${user.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      onChange(data.user);
+    } catch (err) {
+      setError(err.message);
+    }
+    setBusy(false);
+  }
+
+  function togglePermission(permission) {
+    const next = user.permissions.includes(permission)
+      ? user.permissions.filter((p) => p !== permission)
+      : [...user.permissions, permission];
+    patch({ permissions: next });
+  }
+
+  async function remove() {
+    if (!window.confirm(`Delete ${user.username}? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      await api(`/users/${user.id}`, { method: "DELETE" });
+      onDelete(user.id);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <tr>
+      <td>
+        <span className="rx-mono">{user.username}</span>
+        {user.isMaster && <span className="rx-admin-tag">master</span>}
+        {isSelf && <span className="rx-admin-tag muted">you</span>}
+        {error && <p className="rx-admin-error">{error}</p>}
+      </td>
+      <td style={{ fontSize: 13 }}>
+        {user.email || "—"}
+        {user.name && (
+          <>
+            <br />
+            <span style={{ color: "var(--color-gray-mid)" }}>{user.name}</span>
+          </>
+        )}
+      </td>
+      <td>
+        {user.isMaster ? (
+          <span style={{ textTransform: "capitalize" }}>{user.role}</span>
+        ) : (
+          <select value={user.role} onChange={(e) => patch({ role: e.target.value })} disabled={busy}>
+            <option value="developer">developer</option>
+            <option value="telemarketer">telemarketer</option>
+          </select>
+        )}
+      </td>
+      <td>
+        <div className="rx-admin-perms">
+          {permissions.map((permission) => (
+            <label key={permission} title={permission}>
+              <input
+                type="checkbox"
+                checked={user.permissions.includes(permission)}
+                onChange={() => togglePermission(permission)}
+                disabled={busy || user.isMaster}
+              />
+              {permissionLabel(permission)}
+            </label>
+          ))}
+        </div>
+      </td>
+      <td style={{ whiteSpace: "nowrap" }}>
+        {user.isMaster ? (
+          <span style={{ color: "var(--color-gray-mid)" }}>active</span>
+        ) : (
+          <select
+            value={user.status}
+            onChange={(e) => patch({ status: e.target.value })}
+            disabled={busy}
+          >
+            <option value="active">active</option>
+            <option value="disabled">disabled</option>
+          </select>
+        )}
+      </td>
+      <td style={{ whiteSpace: "nowrap", fontSize: 13 }}>{fmtDateTime(user.last_login_at)}</td>
+      <td>
+        {!user.isMaster && !isSelf && (
+          <button
+            className="rx-admin-iconbtn"
+            onClick={remove}
+            disabled={busy}
+            title={`Delete ${user.username}`}
+          >
+            <Trash2 size={15} aria-hidden="true" />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function UsersPanel({ me, onSignedOut }) {
+  const [state, setState] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api("/users")
+      .then((data) => {
+        if (!cancelled) setState(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err.status === 401) onSignedOut();
+        else setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [onSignedOut]);
+
+  function replace(user) {
+    setState((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? user : u)) }));
+  }
+
+  return (
+    <>
+      <PanelHeading
+        title="Users"
+        note="Everyone who can sign in to this dashboard. Only the master admin sees this."
+      />
+
+      {error && <p className="rx-admin-error" style={{ marginTop: 24 }}>{error}</p>}
+      {!state && !error && <p style={{ marginTop: 24 }}>Loading…</p>}
+
+      {state && (
+        <>
+          <div style={{ overflowX: "auto", marginTop: 28 }}>
+            <table className="rx-admin-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Permissions</th>
+                  <th>Status</th>
+                  <th>Last sign-in</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.users.map((user) => (
+                  <UserRow
+                    key={user.id}
+                    user={user}
+                    permissions={state.permissions}
+                    isSelf={user.id === me.id}
+                    onChange={replace}
+                    onDelete={(id) =>
+                      setState((s) => ({ ...s, users: s.users.filter((u) => u.id !== id) }))
+                    }
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="rx-h3" style={{ marginTop: 40, marginBottom: 14 }}>
+            Add a user
+          </h2>
+          <NewUserForm
+            roles={state.roles}
+            onCreated={(user) => setState((s) => ({ ...s, users: [...s.users, user] }))}
+          />
+          <p className="rx-admin-note">
+            The master account is set by ADMIN_USER / ADMIN_PASSWORD in .env and can&apos;t be
+            edited here — that way a lockout is always fixable from the server.
+          </p>
+        </>
+      )}
+    </>
+  );
+}
+
+// --- audit log (master only) ---------------------------------------------
+
+const PAGE_SIZE = 100;
+
+function AuditPanel({ onSignedOut }) {
+  const [state, setState] = useState(null);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState({ username: "", action: "", resource: "" });
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const query = useCallback(
+    (offset) => {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+      for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+      return api(`/audit?${params}`);
+    },
+    [filters]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    query(0)
+      .then((data) => {
+        if (!cancelled) setState(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err.status === 401) onSignedOut();
+        else setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, onSignedOut]);
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const data = await query(state.entries.length);
+      setState((s) => ({ ...data, entries: [...s.entries, ...data.entries] }));
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoadingMore(false);
+  }
+
+  const set = (key) => (e) => setFilters((f) => ({ ...f, [key]: e.target.value }));
+
+  return (
+    <>
+      <PanelHeading
+        title="Audit log"
+        note="Every read, write and sign-in, newest first. Only the master admin sees this."
+      />
+
+      <div className="rx-admin-filters">
+        <select value={filters.username} onChange={set("username")}>
+          <option value="">All users</option>
+          {(state?.usernames || []).map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+        </select>
+        <select value={filters.action} onChange={set("action")}>
+          <option value="">All actions</option>
+          {(state?.actions || []).map((a) => (
+            <option key={a} value={a}>
+              {a.replace("_", " ")}
+            </option>
+          ))}
+        </select>
+        <select value={filters.resource} onChange={set("resource")}>
+          <option value="">All areas</option>
+          {["clients", "revision", "users", "audit", "session"].map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && <p className="rx-admin-error">{error}</p>}
+      {!state && !error && <p style={{ marginTop: 24 }}>Loading…</p>}
+
+      {state?.entries.length === 0 && (
+        <p style={{ marginTop: 24 }}>Nothing recorded yet for that filter.</p>
+      )}
+
+      {state?.entries.length > 0 && (
+        <>
+          <div style={{ overflowX: "auto", marginTop: 20 }}>
+            <table className="rx-admin-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>Area</th>
+                  <th>Record</th>
+                  <th>Detail</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td style={{ whiteSpace: "nowrap", fontSize: 13 }}>
+                      {fmtDateTime(entry.created_at)}
+                    </td>
+                    <td className="rx-mono" style={{ whiteSpace: "nowrap" }}>{entry.username}</td>
+                    <td>
+                      <span className={`rx-admin-action ${entry.action}`}>
+                        {entry.action.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td>{entry.resource}</td>
+                    <td className="rx-mono" style={{ fontSize: 13 }}>{entry.resource_id || "—"}</td>
+                    <td style={{ fontSize: 13, color: "var(--color-gray-mid)" }}>
+                      {entry.detail || "—"}
+                    </td>
+                    <td className="rx-mono" style={{ fontSize: 12 }}>{entry.ip || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {state.hasMore && (
+            <button
+              className="rx-btn rx-btn-outline"
+              style={{ marginTop: 24 }}
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load older"}
+            </button>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 // The left-hand menu. One entry per section — adding a section means adding a
 // line here and its panel component; the menu item, the route (/admin/<id>) and
 // the default landing section all follow from this list.
+//
+// `when` decides who sees the item. It only hides the menu entry and its route:
+// the server checks permissions again on every request, so a hidden section is
+// not a protected one.
 const SECTIONS = [
-  { id: "clients", label: "Clients", icon: Users, Panel: ClientsPanel },
+  {
+    id: "clients",
+    label: "Clients",
+    icon: Users,
+    Panel: ClientsPanel,
+    when: (user) => can(user, "clients:read"),
+  },
+  {
+    id: "users",
+    label: "Users",
+    icon: UserCog,
+    Panel: UsersPanel,
+    when: (user) => user.isMaster,
+  },
+  {
+    id: "audit",
+    label: "Audit log",
+    icon: ScrollText,
+    Panel: AuditPanel,
+    when: (user) => user.isMaster,
+  },
 ];
 
-function Menu({ onSignOut }) {
+function Menu({ sections, me, onSignOut }) {
   return (
     <aside className="rx-admin-sidebar">
       <div className="rx-eyebrow">admin</div>
 
       <nav className="rx-admin-menu" aria-label="Admin sections">
-        {SECTIONS.map(({ id, label, icon: Icon }) => (
+        {sections.map(({ id, label, icon: Icon }) => (
           <NavLink
             key={id}
             to={`/admin/${id}`}
@@ -307,6 +759,11 @@ function Menu({ onSignOut }) {
           </NavLink>
         ))}
       </nav>
+
+      <div className="rx-admin-whoami">
+        <span className="rx-mono">{me.username}</span>
+        <span>{me.isMaster ? "master admin" : me.role}</span>
+      </div>
 
       <button className="rx-admin-signout" onClick={onSignOut}>
         <LogOut size={16} aria-hidden="true" />
@@ -328,21 +785,28 @@ function UnknownSection() {
   );
 }
 
-function Dashboard({ onSignedOut }) {
+function Dashboard({ me, onSignedOut }) {
   async function signOut() {
     await fetch("/api/admin/logout", { method: "POST" });
     onSignedOut();
   }
 
+  // Only the sections this account may use. A telemarketer who types
+  // /admin/users lands on "not found" rather than an empty panel — and the API
+  // would refuse them anyway.
+  const sections = SECTIONS.filter((section) => section.when(me));
+
   return (
     <div className="rx-admin-shell">
-      <Menu onSignOut={signOut} />
+      <Menu sections={sections} me={me} onSignOut={signOut} />
 
       <div className="rx-admin-panel">
         <Routes>
-          <Route index element={<Navigate to={SECTIONS[0].id} replace />} />
-          {SECTIONS.map(({ id, Panel }) => (
-            <Route key={id} path={id} element={<Panel onSignedOut={onSignedOut} />} />
+          {sections.length > 0 && (
+            <Route index element={<Navigate to={sections[0].id} replace />} />
+          )}
+          {sections.map(({ id, Panel }) => (
+            <Route key={id} path={id} element={<Panel me={me} onSignedOut={onSignedOut} />} />
           ))}
           <Route path="*" element={<UnknownSection />} />
         </Routes>
@@ -352,20 +816,22 @@ function Dashboard({ onSignedOut }) {
 }
 
 function Admin() {
-  const [signedIn, setSignedIn] = useState(null);
+  // `me` doubles as the signed-in flag: null once checked and signed out,
+  // undefined while the session request is still in flight.
+  const [me, setMe] = useState(undefined);
   const [seeded, setSeeded] = useState(false);
 
   // Stable identity so the panels' fetch effects don't re-run on every render.
-  const handleSignedOut = useCallback(() => setSignedIn(false), []);
+  const handleSignedOut = useCallback(() => setMe(null), []);
 
   useEffect(() => {
     fetch("/api/admin/session")
       .then((r) => r.json())
       .then((d) => {
-        setSignedIn(Boolean(d.signedIn));
+        setMe(d.signedIn ? d.user : null);
         setSeeded(Boolean(d.seeded));
       })
-      .catch(() => setSignedIn(false));
+      .catch(() => setMe(null));
   }, []);
 
   return (
@@ -377,10 +843,10 @@ function Admin() {
         noindex
       />
       <div className="rx-wrap">
-        {signedIn === null ? null : signedIn ? (
-          <Dashboard onSignedOut={handleSignedOut} />
+        {me === undefined ? null : me ? (
+          <Dashboard me={me} onSignedOut={handleSignedOut} />
         ) : (
-          <Login onSignedIn={() => setSignedIn(true)} seeded={seeded} />
+          <Login onSignedIn={(user) => setMe(user)} seeded={seeded} />
         )}
       </div>
     </section>
