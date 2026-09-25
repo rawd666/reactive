@@ -15,6 +15,12 @@ import { useEffect, useRef } from "react";
 
 const DEFAULT_CHARACTERS = " .:-+*=%@#";
 
+// One wave unit in pixels. Wave size is measured in screen space, not in
+// characters, so elementSize only ever changes how big the glyphs are — the
+// waves themselves keep the same shape. At noiseScale 1 the leading wave is
+// about 2π × this wide, i.e. ~600px.
+const WAVE_UNIT = 96;
+
 function AsciiWaves({
   characters = DEFAULT_CHARACTERS,
   color = "rgba(255,31,125,0.55)",
@@ -22,6 +28,10 @@ function AsciiWaves({
   speed = 1,
   noiseScale = 1,
   intensity = 1,
+  angle = 45, // degrees; the direction the wave travels, so the bands run across it
+  // How hard the bands snake along their own length. Past ~1.6 the bend cancels
+  // the diagonal gradient and the bands flatten out into vertical stripes.
+  twist = 1.2,
   interactive = true,
   cursorIntensity = 1,
   className = "",
@@ -39,6 +49,10 @@ function AsciiWaves({
     const ramp = characters.length > 1 ? characters : DEFAULT_CHARACTERS;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const radians = (angle * Math.PI) / 180;
+    const cosAngle = Math.cos(radians);
+    const sinAngle = Math.sin(radians);
 
     let cellWidth = elementSize * 0.6;
     let cellHeight = elementSize * 1.05;
@@ -82,17 +96,35 @@ function AsciiWaves({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = color;
 
+      // Everything is sampled in a frame rotated by `angle`: u runs across the
+      // bands (the direction the wave travels) and v runs along them. Rotating
+      // the frame rather than the canvas is what makes the bands diagonal while
+      // the characters stay upright on their grid.
+      // u and v are stepped by a constant per column instead of being
+      // multiplied out per cell — same result, no multiply in the inner loop.
+      const stepU = (cellWidth / WAVE_UNIT) * noiseScale * cosAngle;
+      const stepV = (cellWidth / WAVE_UNIT) * noiseScale * sinAngle;
+
       for (let row = 0; row < rows; row++) {
         const y = row * cellHeight;
-        const ny = row * 0.3 * noiseScale;
-        // Row-constant term, hoisted out of the column loop.
-        const swell = Math.sin(ny * 0.8 - t * 0.7) * 0.28;
+        const yUnit = (y / WAVE_UNIT) * noiseScale;
+        let u = yUnit * sinAngle;
+        let v = yUnit * cosAngle;
 
         let line = "";
         for (let col = 0; col < columns; col++) {
-          const nx = col * 0.18 * noiseScale;
-          let value = Math.sin(nx + t) * 0.55 + swell + Math.sin((nx + ny) * 0.6 + t * 1.3) * 0.22;
+          // The bands bend as they run along v — this is the twist. Shifting u
+          // by a function of v snakes the whole band instead of just rippling it.
+          const bend = Math.sin(v * 0.35 - t * 0.45) * twist;
+
+          let value =
+            Math.sin(u + bend + t) * 0.62 +
+            Math.sin(u * 0.5 - v * 0.25 + t * 0.7) * 0.23 +
+            Math.sin(v * 0.35 + t * 0.5) * 0.15;
           value *= intensity;
+
+          u += stepU;
+          v -= stepV;
 
           if (pointer.strength > 0) {
             const dx = (col * cellWidth - pointer.x) / reach;
@@ -180,7 +212,18 @@ function AsciiWaves({
       host.removeEventListener("pointermove", onPointerMove);
       host.removeEventListener("pointerleave", onPointerLeave);
     };
-  }, [characters, color, elementSize, speed, noiseScale, intensity, interactive, cursorIntensity]);
+  }, [
+    characters,
+    color,
+    elementSize,
+    speed,
+    noiseScale,
+    intensity,
+    angle,
+    twist,
+    interactive,
+    cursorIntensity,
+  ]);
 
   return (
     <canvas ref={canvasRef} className={`rx-ascii-waves ${className}`.trim()} aria-hidden="true" />
