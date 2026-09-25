@@ -33,4 +33,8 @@ docker-compose.override.yml
 # Local client database (production lives in the reactive-data docker volume).
 # contracts/ is deliberately NOT ignored — the terms archive is the record of
 # what each client signed.
-data/
+#
+# Leading slash matters: bare "data/" matches a data directory at ANY depth, so
+# it swallowed src/data/ too and kept src/data/terms.js out of the repo — the
+# build then failed on the VPS with an unresolved import that worked locally.
+/data/
