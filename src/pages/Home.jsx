@@ -103,14 +103,14 @@ function Home() {
               on their way up.
             </h2>
             <p className="rx-lead" style={{ marginTop: 20 }}>
-              I work best with growing and established businesses. The ones who know exactly where
-              they're headed but haven't had a website that looks like it yet. That's the gap I
+              We work best with growing and established businesses. The ones who know exactly where
+              they're headed but haven't had a website that looks like it yet. That's the gap we
               close.
             </p>
           </div>
           <div>
             <p style={{ marginBottom: 20 }}>
-              Because it's just me, you're never handed off to a project manager or a junior
+              You're never handed off to a project manager or a junior
               designer. You work directly with the person building your site, from the first
               conversation to launch day, which usually means it moves faster and fits your actual
               business, not a generic mold.
