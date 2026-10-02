@@ -25,14 +25,14 @@ function Home() {
         <AsciiWaves />
         <div className="rx-wrap rx-hero-grid">
           <div>
-            <div className="rx-eyebrow">built by one developer, for businesses just getting started</div>
+            <div className="rx-eyebrow">for businesses just getting started</div>
             <h1 className="rx-h1">
               A website that
               <TypedWord />
               as fast as your business does.
             </h1>
             <p className="rx-lead" style={{ marginTop: 24 }}>
-              I design and build custom websites with React. If you can describe it, I can build it into your site: booking
+              We design and build custom websites with React. If you can describe it, We can turn it into your site: booking
               systems, animations, dashboards, e-commerce, and more.
             </p>
             <div style={{ display: "flex", gap: 16, marginTop: 36, flexWrap: "wrap" }}>
@@ -145,7 +145,7 @@ function Home() {
         <div className="rx-wrap rx-cta-banner">
           <h2 className="rx-h2">Ready to build something real?</h2>
           <p className="rx-lead" style={{ margin: "16px auto 32px" }}>
-            Take a look at how projects are packaged, or just reach out and tell me about your
+            Take a look at how projects are packaged, or just reach out and tell us about your
             business.
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
@@ -153,7 +153,7 @@ function Home() {
               View packages
             </button>
             <button className="rx-btn rx-btn-outline" onClick={() => navigate("/contact")}>
-              Contact me
+              Contact us
             </button>
           </div>
         </div>

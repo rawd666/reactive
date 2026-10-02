@@ -14,13 +14,13 @@ function Contact() {
         <div>
           <div className="rx-eyebrow">get in touch</div>
           <h1 className="rx-h1" style={{ fontSize: "clamp(34px,5vw,56px)" }}>
-            Tell me about
+            Tell us about
             <br />
             your business.
           </h1>
           <p className="rx-lead" style={{ marginTop: 20 }}>
-            Send a few details about what you're building and what you need. I read every message
-            myself and reply within 1-2 business days.
+            Send a few details about what you're building and what you need. We read every message
+            and reply within 1-2 business days.
           </p>
 
           <div className="rx-contact-info">
@@ -49,7 +49,7 @@ function Contact() {
               <Globe size={18} />
               <div>
                 <div className="rx-contact-label rx-mono">based in</div>
-                <p style={{ color: "var(--color-white)" }}>Working with clients remotely, anywhere</p>
+                <p style={{ color: "var(--color-white)" }}>California, USA</p>
               </div>
             </div>
           </div>
