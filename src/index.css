@@ -44,9 +44,26 @@ body {
   color:var(--color-white);
   font-family:var(--font-body);
   line-height:1.6;
-  min-height:100vh;
   -webkit-font-smoothing:antialiased;
+
+  /* Sticky footer: the page is a column at least as tall as the viewport, and
+     <main> takes the slack — so on a short page the footer sits on the bottom
+     edge instead of right under the content. */
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
 }
+
+/* dvh measures the visible viewport rather than the one behind a mobile URL
+   bar. It lives in @supports because two min-heights in one rule get minified
+   down to the last, which would leave old browsers with no fallback at all. */
+@supports (min-height:100dvh){
+  .reactive-root{min-height:100dvh;}
+}
+
+/* grow, never shrink, size to content first: the hero's negative top margin
+   (see .rx-hero) must stay free to pull the section up under the nav. */
+.reactive-root > main{flex:1 0 auto;}
 
 .reactive-root *{box-sizing:border-box;}
 .reactive-root a{color:inherit;text-decoration:none;}
