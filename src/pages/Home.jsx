@@ -25,7 +25,7 @@ function Home() {
         <AsciiWaves />
         <div className="rx-wrap rx-hero-grid">
           <div>
-            <div className="rx-eyebrow">for businesses just getting started</div>
+            <div className="rx-eyebrow">a website created just for your business</div>
             <h1 className="rx-h1">
               A website that
               <TypedWord />
