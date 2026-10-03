@@ -28,7 +28,7 @@ function Contact() {
               <Mail size={18} />
               <div>
                 <div className="rx-contact-label rx-mono">email</div>
-                <a href="mailto:rawd@reactiveweb.dev">rawd@reactiveweb.dev</a>
+                <a href="mailto:contact@reactiveweb.dev">contact@reactiveweb.dev</a>
               </div>
             </div>
             <div className="rx-contact-info-row">

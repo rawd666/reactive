@@ -44,9 +44,9 @@ function ContactForm() {
           Message sent successfully!
         </h3>
         <p style={{ color: "var(--color-text-body)" }}>
-          Thanks, {form.name || "there"}. Your message has been sent straight through to my inbox. If you need anything else, you can also reach out directly at{" "}
-          <a href="mailto:rawd@reactiveweb.dev" style={{ color: "var(--color-pink)" }}>
-            rawd@reactiveweb.dev
+          Thanks, {form.name || "there"}. Your message has been sent straight through to our inbox. If you need anything else, you can also reach out directly at{" "}
+          <a href="mailto:contact@reactiveweb.dev" style={{ color: "var(--color-pink)" }}>
+            contact@reactiveweb.dev
           </a>
           .
         </p>
@@ -126,7 +126,7 @@ function ContactForm() {
         id="rx-message"
         rows={5}
         required
-        placeholder="Tell me a bit about your business and what you're looking for."
+        placeholder="Tell us a bit about your business and what you're looking for."
         value={form.message}
         onChange={update("message")}
         disabled={status.loading}
