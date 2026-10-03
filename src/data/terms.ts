@@ -1,6 +1,6 @@
 // Single source of truth for the Terms & Conditions.
 //
-// Both the /terms page and the contract PDF generator (scripts/make-contract.js)
+// Both the /terms page and the contract PDF generator (scripts/make-contract.ts)
 // read from this file, so the two can never drift apart. There is one wording —
 // no separate "web" and "paper" text — so a client reads the same clauses on
 // screen and on a signed copy.
@@ -13,7 +13,15 @@
 export const TERMS_VERSION = "2026-09-16";
 export const TERMS_LAST_UPDATED = "September 16, 2026";
 
-export const TERMS = [
+export interface TermsSection {
+  n: number;
+  title: string;
+  // Render the package comparison under this section.
+  showPackages?: boolean;
+  body: string[];
+}
+
+export const TERMS: TermsSection[] = [
   {
     n: 1,
     title: "Scope of services",

@@ -39,7 +39,7 @@ function App() {
           <Route path="/checkout/:planId" element={<Checkout />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
-          {/* /admin/* — the dashboard routes its own sections (see SECTIONS in Admin.jsx). */}
+          {/* /admin/* — the dashboard routes its own sections (see SECTIONS in Admin.tsx). */}
           <Route
             path="/admin/*"
             element={

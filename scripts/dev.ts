@@ -7,11 +7,12 @@
 // ports agreed on without a shell-specific `PORT=5174 ...` prefix.
 
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
-import { SEEDED_LOGIN, usesSeededLogin, adminUser } from '../server/auth.js';
+import { SEEDED_LOGIN, usesSeededLogin, adminUser } from '../server/auth.ts';
 
 // Read .env here too, so the banner can tell whether the seeded login is still
 // the one in effect. The API process loads it again for itself.
@@ -64,7 +65,7 @@ banner();
 
 // Spawns with this same node binary and an explicit script path — no shell, no
 // reliance on node_modules/.bin being on PATH, and paths with spaces are safe.
-function run(name, args, env) {
+function run(name: string, args: string[], env: Record<string, string>): ChildProcess {
   const child = spawn(process.execPath, args, {
     stdio: 'inherit',
     env: { ...process.env, ...env },
@@ -77,10 +78,10 @@ function run(name, args, env) {
   return child;
 }
 
-const children = [];
+const children: ChildProcess[] = [];
 let stopping = false;
 
-function shutdown(code) {
+function shutdown(code: number) {
   if (stopping) return;
   stopping = true;
   for (const child of children) child.kill('SIGTERM');
@@ -94,7 +95,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 if (only !== 'web') {
-  children.push(run('api', [path.join(root, 'server.js')], { PORT: String(API_PORT) }));
+  children.push(run('api', [path.join(root, 'server.ts')], { PORT: String(API_PORT) }));
 }
 if (only !== 'api') {
   children.push(

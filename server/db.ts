@@ -10,6 +10,48 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+export type ClientRow = {
+  id: number;
+  client_code: string;
+  business_name: string | null;
+  contact_name: string | null;
+  email: string;
+  plan_id: string;
+  subscription_id: string;
+  terms_version: string | null;
+  privacy_version: string | null;
+  started_at: string;
+  support_ends_at: string | null;
+  revisions_included: number | null;
+  revisions_used: number;
+  status: string;
+  contract_file: string | null;
+  contract_agreed: number;
+  notes: string | null;
+  created_at: string;
+};
+
+export type EventRow = {
+  id: number;
+  client_id: number;
+  kind: string;
+  detail: string | null;
+  created_at: string;
+};
+
+export interface NewClient {
+  subscriptionId: string;
+  email: string;
+  contactName: string | null;
+  businessName: string | null;
+  planId: string;
+  termsVersion: string | null;
+  privacyVersion: string | null;
+  revisionsIncluded: number | null;
+  supportDays: number | null;
+  contractAgreed?: boolean;
+}
+
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -51,8 +93,8 @@ db.exec(`
 
 // CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so new
 // columns need an explicit additive migration for databases created earlier.
-function ensureColumn(table, column, definition) {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+function ensureColumn(table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     console.log(`[db] added column ${table}.${column}`);
@@ -64,14 +106,14 @@ ensureColumn('clients', 'contract_agreed', 'INTEGER NOT NULL DEFAULT 0');
 // Unambiguous alphabet: no O/0, I/1, so a code read off an email can't be mistyped.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-function randomCode(len = 6) {
+function randomCode(len = 6): string {
   const bytes = crypto.randomBytes(len);
   let out = '';
   for (let i = 0; i < len; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
   return out;
 }
 
-export function generateClientCode(planId) {
+export function generateClientCode(planId: string): string {
   const exists = db.prepare('SELECT 1 FROM clients WHERE client_code = ?');
   for (let attempt = 0; attempt < 20; attempt++) {
     const code = `RX-${planId.toUpperCase()}-${randomCode()}`;
@@ -80,7 +122,7 @@ export function generateClientCode(planId) {
   throw new Error('Could not generate a unique client code');
 }
 
-export function logEvent(clientId, kind, detail = null) {
+export function logEvent(clientId: number, kind: string, detail: string | null = null) {
   db.prepare(
     'INSERT INTO events (client_id, kind, detail, created_at) VALUES (?, ?, ?, ?)'
   ).run(clientId, kind, detail, new Date().toISOString());
@@ -102,10 +144,10 @@ export function registerClient({
   revisionsIncluded,
   supportDays,
   contractAgreed = false,
-}) {
+}: NewClient): { client: ClientRow; created: boolean } {
   const existing = db
     .prepare('SELECT * FROM clients WHERE subscription_id = ?')
-    .get(subscriptionId);
+    .get(subscriptionId) as ClientRow | undefined;
   if (existing) return { client: existing, created: false };
 
   const now = new Date();
@@ -137,23 +179,23 @@ export function registerClient({
     now.toISOString()
   );
 
-  const client = db.prepare('SELECT * FROM clients WHERE client_code = ?').get(code);
+  const client = db.prepare('SELECT * FROM clients WHERE client_code = ?').get(code) as ClientRow;
   logEvent(client.id, 'registered', `plan=${planId} subscription=${subscriptionId}`);
   return { client, created: true };
 }
 
-export function listClients() {
-  return db.prepare('SELECT * FROM clients ORDER BY started_at DESC').all();
+export function listClients(): ClientRow[] {
+  return db.prepare('SELECT * FROM clients ORDER BY started_at DESC').all() as ClientRow[];
 }
 
-export function getClient(code) {
-  return db.prepare('SELECT * FROM clients WHERE client_code = ?').get(code);
+export function getClient(code: string): ClientRow | undefined {
+  return db.prepare('SELECT * FROM clients WHERE client_code = ?').get(code) as ClientRow | undefined;
 }
 
-export function getEvents(clientId) {
+export function getEvents(clientId: number): EventRow[] {
   return db
     .prepare('SELECT * FROM events WHERE client_id = ? ORDER BY created_at DESC')
-    .all(clientId);
+    .all(clientId) as EventRow[];
 }
 
 const EDITABLE = new Set([
@@ -169,7 +211,10 @@ const EDITABLE = new Set([
   'support_ends_at',
 ]);
 
-export function updateClient(code, patch) {
+// Values come from a JSON request body, so only JSON-representable ones reach here.
+export type ClientPatch = Record<string, string | number | null>;
+
+export function updateClient(code: string, patch: ClientPatch): ClientRow | null {
   const client = getClient(code);
   if (!client) return null;
 
@@ -181,13 +226,13 @@ export function updateClient(code, patch) {
   db.prepare(`UPDATE clients SET ${setSql} WHERE client_code = ?`).run(...values, code);
 
   logEvent(client.id, 'updated', fields.join(', '));
-  return getClient(code);
+  return getClient(code) ?? null;
 }
 
-export function addRevision(code, detail) {
+export function addRevision(code: string, detail?: string | null): ClientRow | null {
   const client = getClient(code);
   if (!client) return null;
   db.prepare('UPDATE clients SET revisions_used = revisions_used + 1 WHERE client_code = ?').run(code);
   logEvent(client.id, 'revision', detail || null);
-  return getClient(code);
+  return getClient(code) ?? null;
 }

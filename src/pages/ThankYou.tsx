@@ -4,7 +4,7 @@ import Seo from "../components/common/Seo";
 
 function ThankYou() {
   const location = useLocation();
-  const planName = location.state?.planName;
+  const planName = (location.state as { planName?: string } | null)?.planName;
 
   return (
     <section className="rx-section">

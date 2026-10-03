@@ -8,7 +8,7 @@
 //
 //   ADMIN_USER=you
 //   ADMIN_PASSWORD=a-long-password          # hashed at boot, never stored
-//   ADMIN_PASSWORD_HASH=<salt>:<hash>       # takes precedence; see scripts/admin-password.js
+//   ADMIN_PASSWORD_HASH=<salt>:<hash>       # takes precedence; see scripts/admin-password.ts
 //   SESSION_SECRET=<64 hex chars>           # otherwise generated into DATA_DIR
 //
 // The generated session secret is written to DATA_DIR/session-secret so that
@@ -17,6 +17,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Request, Response } from 'express';
 
 const COOKIE_NAME = 'rx_admin';
 const SESSION_HOURS = 12;
@@ -30,21 +31,21 @@ export const SEEDED_LOGIN = Object.freeze({
 });
 
 /** True when no password is configured, so the seeded one is in effect. */
-export function usesSeededLogin() {
+export function usesSeededLogin(): boolean {
   return !process.env.ADMIN_PASSWORD_HASH && !process.env.ADMIN_PASSWORD;
 }
 
 /** The username in effect, seeded or not. Never reveals a configured password. */
-export function adminUser() {
+export function adminUser(): string {
   return process.env.ADMIN_USER || SEEDED_LOGIN.user;
 }
 
-export function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+export function hashPassword(password: string, salt = crypto.randomBytes(16).toString('hex')): string {
   const derived = crypto.scryptSync(password, salt, 64).toString('hex');
   return `${salt}:${derived}`;
 }
 
-export function verifyPassword(password, stored) {
+export function verifyPassword(password: string, stored: string | undefined): boolean {
   if (!stored || !stored.includes(':')) return false;
   const [salt, expected] = stored.split(':');
   const actual = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -57,14 +58,21 @@ export function verifyPassword(password, stored) {
 
 // --- configuration -------------------------------------------------------
 
-let config = null;
+export interface AdminConfig {
+  user: string;
+  passwordHash: string;
+  sessionSecret: string;
+  seeded: boolean;
+}
 
-function dataDir() {
+let config: AdminConfig | null = null;
+
+function dataDir(): string {
   return process.env.DATA_DIR || path.join(process.cwd(), 'data');
 }
 
 // Reuses the secret across restarts so an existing session cookie stays valid.
-function loadOrCreateSessionSecret() {
+function loadOrCreateSessionSecret(): { secret: string; created: boolean; ephemeral?: boolean } {
   const file = path.join(dataDir(), 'session-secret');
   try {
     const existing = fs.readFileSync(file, 'utf8').trim();
@@ -78,7 +86,7 @@ function loadOrCreateSessionSecret() {
     fs.writeFileSync(file, secret, { mode: 0o600 });
     return { secret, created: true };
   } catch (err) {
-    console.warn(`[admin] could not persist session secret (${err.message}); ` +
+    console.warn(`[admin] could not persist session secret (${(err as Error).message}); ` +
       'using an in-memory one — sessions will end on restart.');
     return { secret, created: true, ephemeral: true };
   }
@@ -88,7 +96,7 @@ function loadOrCreateSessionSecret() {
  * Resolves the admin credentials, seeding anything .env doesn't provide.
  * Safe to call repeatedly; the work happens once.
  */
-export function initAdminConfig() {
+export function initAdminConfig(): AdminConfig {
   if (config) return config;
 
   const user = adminUser();
@@ -130,30 +138,33 @@ export function initAdminConfig() {
   return config;
 }
 
-function getConfig() {
+function getConfig(): AdminConfig {
   return config || initAdminConfig();
 }
 
-// Credentials are checked against the admin_users table — see users.js. This
+// Credentials are checked against the admin_users table — see users.ts. This
 // module only knows how to hash, how to sign a cookie, and what .env says about
 // the master account.
 
 // --- session cookie ------------------------------------------------------
 
-function sign(value, secret) {
+function sign(value: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(value).digest('hex');
 }
 
 // The payload carries who is signed in as well as when the session ends, so
 // every request can be attributed to an account in the audit log. Both halves
 // are covered by the signature, so neither can be swapped.
-function makeToken(secret, userId) {
+function makeToken(secret: string, userId: number): string {
   const expiresAt = Date.now() + SESSION_HOURS * 3600 * 1000;
   const payload = `${userId}:${expiresAt}`;
   return `${payload}.${sign(payload, secret)}`;
 }
 
-function readToken(token, secret) {
+function readToken(
+  token: string | null,
+  secret: string
+): { userId: number; expiresAt: number } | null {
   if (!token || !token.includes('.')) return null;
   const [payload, signature] = token.split('.');
   const expected = sign(payload, secret);
@@ -168,7 +179,7 @@ function readToken(token, secret) {
 }
 
 // Small cookie reader so this needs no cookie-parser dependency.
-function readCookie(req, name) {
+function readCookie(req: Request, name: string): string | null {
   const header = req.headers.cookie;
   if (!header) return null;
   for (const part of header.split(';')) {
@@ -178,7 +189,7 @@ function readCookie(req, name) {
   return null;
 }
 
-export function issueSession(res, userId) {
+export function issueSession(res: Response, userId: number) {
   const { sessionSecret } = getConfig();
   res.cookie(COOKIE_NAME, makeToken(sessionSecret, userId), {
     httpOnly: true,
@@ -189,12 +200,12 @@ export function issueSession(res, userId) {
   });
 }
 
-export function clearSession(res) {
+export function clearSession(res: Response) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
 /** The user id in the request's session cookie, or null. */
-export function sessionUserId(req) {
+export function sessionUserId(req: Request): number | null {
   const { sessionSecret } = getConfig();
   const token = readToken(readCookie(req, COOKIE_NAME), sessionSecret);
   return token ? token.userId : null;

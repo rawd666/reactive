@@ -1,5 +1,5 @@
 /**
- * Generates a signable contract PDF from the live terms in src/data/terms.js.
+ * Generates a signable contract PDF from the live terms in src/data/terms.ts.
  *
  *   npm run contract              -> Grow package (default)
  *   npm run contract -- launch    -> a different package
@@ -17,8 +17,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
-import { TERMS, TERMS_VERSION, TERMS_LAST_UPDATED } from "../src/data/terms.js";
-import { PLANS } from "../src/data/plans.js";
+import { TERMS, TERMS_VERSION, TERMS_LAST_UPDATED } from "../src/data/terms.ts";
+import type { TermsSection } from "../src/data/terms.ts";
+import { PLANS } from "../src/data/plans.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -40,13 +41,14 @@ const BLANK = "________________________________";
 /* ---------------- resolve package ---------------- */
 
 const planId = (process.argv[2] || "grow").toLowerCase();
-const plan = PLANS.find((p) => p.id === planId);
-if (!plan) {
+const found = PLANS.find((p) => p.id === planId);
+if (!found) {
   console.error(
     `Unknown package "${planId}". Available: ${PLANS.map((p) => p.id).join(", ")}`
   );
   process.exit(1);
 }
+const plan = found;
 
 /* ---------------- optional per-client details ---------------- */
 
@@ -54,9 +56,27 @@ if (!plan) {
 //
 // Anything the file leaves out falls back to a blank line to fill in by hand.
 // Custom clauses go in "addendum" as an array of paragraphs; they print as their
-// own numbered section so the shared terms in src/data/terms.js stay untouched.
+// own numbered section so the shared terms in src/data/terms.ts stay untouched.
+interface ClientDetails {
+  effectiveDate?: string;
+  clientName?: string;
+  businessName?: string;
+  email?: string;
+  projectSite?: string;
+  targetLaunch?: string;
+  scope?: string[];
+  addendum?: string[];
+}
+
+interface TermsSnapshot {
+  version: string;
+  lastUpdated: string;
+  sections: TermsSection[];
+  firstUsedAt?: string;
+}
+
 const detailsPath = process.argv[3];
-const details = detailsPath
+const details: ClientDetails = detailsPath
   ? JSON.parse(fs.readFileSync(path.resolve(ROOT, detailsPath), "utf8"))
   : {};
 
@@ -69,23 +89,23 @@ const slug = (details.businessName || "")
 
 fs.mkdirSync(ARCHIVE_DIR, { recursive: true });
 const archivePath = path.join(ARCHIVE_DIR, `${TERMS_VERSION}.json`);
-const snapshot = {
+const snapshot: TermsSnapshot = {
   version: TERMS_VERSION,
   lastUpdated: TERMS_LAST_UPDATED,
   sections: TERMS,
 };
 
 if (fs.existsSync(archivePath)) {
-  const stored = JSON.parse(fs.readFileSync(archivePath, "utf8"));
+  const stored: TermsSnapshot = JSON.parse(fs.readFileSync(archivePath, "utf8"));
   const same =
     JSON.stringify(stored.sections) === JSON.stringify(snapshot.sections) &&
     stored.lastUpdated === snapshot.lastUpdated;
   if (!same) {
     console.error(
       `\nTerms version "${TERMS_VERSION}" is already archived, but the wording in\n` +
-        `src/data/terms.js no longer matches that archive.\n\n` +
+        `src/data/terms.ts no longer matches that archive.\n\n` +
         `A signed contract points at a version, so a version must never change meaning.\n` +
-        `Bump TERMS_VERSION (and TERMS_LAST_UPDATED) in src/data/terms.js, then re-run.\n\n` +
+        `Bump TERMS_VERSION (and TERMS_LAST_UPDATED) in src/data/terms.ts, then re-run.\n\n` +
         `  archived: ${path.relative(ROOT, archivePath)}\n`
     );
     process.exit(1);
@@ -116,7 +136,7 @@ const doc = new PDFDocument({
   },
 });
 const out = fs.createWriteStream(outPath);
-out.on("error", (err) => {
+out.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EBUSY" || err.code === "EPERM" || err.code === "EACCES") {
     console.error(
       `\nCould not write ${path.relative(ROOT, outPath)} — the file is open in another program.\n` +
@@ -141,7 +161,7 @@ function rule() {
   doc.y = y + 12;
 }
 
-function heading(text) {
+function heading(text: string) {
   if (doc.y > doc.page.height - 150) doc.addPage();
   doc.moveDown(0.9);
   doc.font("Helvetica-Bold").fontSize(10.5).fillColor(PINK)
@@ -149,13 +169,13 @@ function heading(text) {
   doc.moveDown(0.35);
 }
 
-function para(text) {
+function para(text: string) {
   doc.font("Helvetica").fontSize(9.8).fillColor(INK)
     .text(text, { align: "justify", lineGap: 2.2 });
   doc.moveDown(0.5);
 }
 
-function field(label, value) {
+function field(label: string, value: string) {
   const y = doc.y;
   doc.font("Helvetica-Bold").fontSize(9).fillColor(MUTED)
     .text(label.toUpperCase(), doc.page.margins.left, y, {
@@ -170,10 +190,10 @@ function field(label, value) {
 
 function packageTable() {
   // A client file may restate the scope for a negotiated deal. When it does, the
-  // agreed list is what this contract prints — src/data/plans.js and the public
+  // agreed list is what this contract prints — src/data/plans.ts and the public
   // Packages page are never edited for one customer.
   const customScope = Array.isArray(details.scope) && details.scope.length > 0;
-  const features = customScope ? details.scope : plan.features;
+  const features = customScope ? details.scope! : plan.features;
 
   doc.moveDown(0.2);
   doc.font("Helvetica-Bold").fontSize(9.8).fillColor(INK)

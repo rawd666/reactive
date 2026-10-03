@@ -3,15 +3,20 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "dev": "node scripts/dev.js",
-    "dev:web": "node scripts/dev.js --web",
-    "dev:api": "node scripts/dev.js --api",
-    "build": "vite build",
+    "dev": "node scripts/dev.ts",
+    "dev:web": "node scripts/dev.ts --web",
+    "dev:api": "node scripts/dev.ts --api",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
-    "contract": "node scripts/make-contract.js",
-    "admin-password": "node scripts/admin-password.js"
+    "start": "node server.ts",
+    "contract": "node scripts/make-contract.ts",
+    "admin-password": "node scripts/admin-password.ts"
   },
   "dependencies": {
     "@paypal/react-paypal-js": "^10.1.2",
@@ -27,6 +32,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.1",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
@@ -35,6 +45,8 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
     "pdfkit": "^0.20.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
     "vite": "^8.1.1"
   }
 }

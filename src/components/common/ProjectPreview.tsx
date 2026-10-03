@@ -1,13 +1,21 @@
 import { useEffect } from "react";
 import { Maximize2, X, ArrowUpRight } from "lucide-react";
+import type { Project } from "../../data/projects";
 
-function ProjectPreview({ project, expanded, onExpand, onClose }) {
+interface ProjectPreviewProps {
+  project: Project;
+  expanded: boolean;
+  onExpand: () => void;
+  onClose: () => void;
+}
+
+function ProjectPreview({ project, expanded, onExpand, onClose }: ProjectPreviewProps) {
   const visit = () => window.open(project.url, "_blank", "noopener,noreferrer");
 
   useEffect(() => {
     if (!expanded) return;
 
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);

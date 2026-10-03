@@ -2,7 +2,7 @@
 // role lets them do.
 //
 // The master admin is special. It is seeded from .env (ADMIN_USER /
-// ADMIN_PASSWORD, see auth.js) and its password keeps coming from there on every
+// ADMIN_PASSWORD, see auth.ts) and its password keeps coming from there on every
 // boot, so the VPS owner can always rotate it by editing .env and restarting —
 // even if they lock themselves out of the UI. Everyone else is a database row
 // with its own scrypt hash, created and managed from the Users section.
@@ -10,10 +10,18 @@
 // There is always exactly one master: it cannot be deleted, demoted, or
 // disabled, because doing so would leave nobody able to manage accounts.
 
-import { db } from './db.js';
-import { hashPassword, verifyPassword, initAdminConfig } from './auth.js';
+import { db } from './db.ts';
+import { hashPassword, verifyPassword, initAdminConfig } from './auth.ts';
 
-export const ROLES = ['master', 'developer', 'telemarketer'];
+export const ROLES = ['master', 'developer', 'telemarketer'] as const;
+export type Role = (typeof ROLES)[number];
+
+// The roles an account can be given from the UI — 'master' comes from .env only.
+type AssignableRole = Exclude<Role, 'master'>;
+
+function isAssignableRole(role: unknown): role is AssignableRole {
+  return role === 'developer' || role === 'telemarketer';
+}
 
 // Every capability the admin API checks. Keep these coarse — a permission that
 // maps to "a section of the dashboard plus the routes behind it" stays
@@ -23,12 +31,17 @@ export const PERMISSIONS = [
   'clients:write',
   'users:manage',
   'audit:read',
-];
+] as const;
+export type Permission = (typeof PERMISSIONS)[number];
+
+function isPermission(p: unknown): p is Permission {
+  return PERMISSIONS.includes(p as Permission);
+}
 
 // What each role gets by default when the account is created. Permissions are
 // stored per user after that, so an individual can be granted more or less
 // without inventing a new role.
-export const ROLE_PERMISSIONS = {
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   master: [...PERMISSIONS],
   developer: ['clients:read', 'clients:write'],
   telemarketer: ['clients:read'],
@@ -50,21 +63,62 @@ db.exec(`
   );
 `);
 
+type UserRow = {
+  id: number;
+  username: string;
+  email: string;
+  name: string | null;
+  password_hash: string;
+  role: Role;
+  permissions: string;
+  is_master: number;
+  status: string;
+  created_at: string;
+  last_login_at: string | null;
+};
+
+/** The shape sent to the browser — never includes the password hash. */
+export interface PublicUser {
+  id: number;
+  username: string;
+  email: string;
+  name: string;
+  role: Role;
+  permissions: Permission[];
+  isMaster: boolean;
+  status: string;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+// Fields as they arrive in a JSON request body, before validation.
+export interface NewUserInput {
+  username?: unknown;
+  email?: unknown;
+  name?: unknown;
+  role?: unknown;
+  permissions?: unknown;
+  password?: unknown;
+}
+
+export type UserPatch = Record<string, unknown>;
+
 // A hash to check against when the username doesn't exist, so a wrong username
 // costs the same time as a wrong password and can't be told apart by timing.
 const DUMMY_HASH = hashPassword('no-such-user');
 
-function parsePermissions(raw) {
+function parsePermissions(raw: string): Permission[] {
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((p) => PERMISSIONS.includes(p)) : [];
+    return Array.isArray(parsed) ? parsed.filter(isPermission) : [];
   } catch {
     return [];
   }
 }
 
-/** The shape sent to the browser — never includes the password hash. */
-export function publicUser(row) {
+export function publicUser(row: UserRow): PublicUser;
+export function publicUser(row: UserRow | undefined): PublicUser | null;
+export function publicUser(row: UserRow | undefined): PublicUser | null {
   if (!row) return null;
   const isMaster = row.is_master === 1;
   return {
@@ -83,7 +137,7 @@ export function publicUser(row) {
   };
 }
 
-export function can(user, permission) {
+export function can(user: PublicUser | null, permission: Permission): boolean {
   if (!user || user.status !== 'active') return false;
   if (user.isMaster) return true;
   return user.permissions.includes(permission);
@@ -101,7 +155,9 @@ export function initUsers() {
 
   const { user: masterName, passwordHash } = initAdminConfig();
   const now = new Date().toISOString();
-  const existing = db.prepare('SELECT * FROM admin_users WHERE is_master = 1').get();
+  const existing = db.prepare('SELECT * FROM admin_users WHERE is_master = 1').get() as
+    | UserRow
+    | undefined;
 
   if (!existing) {
     db.prepare(
@@ -120,17 +176,17 @@ export function initUsers() {
   ).run(masterName, passwordHash, JSON.stringify(ROLE_PERMISSIONS.master), existing.id);
 }
 
-export function listUsers() {
+export function listUsers(): PublicUser[] {
   initUsers();
   return db
     .prepare('SELECT * FROM admin_users ORDER BY is_master DESC, username COLLATE NOCASE')
     .all()
-    .map(publicUser);
+    .map((row) => publicUser(row as UserRow));
 }
 
-export function getUserById(id) {
+export function getUserById(id: number): PublicUser | null {
   initUsers();
-  return publicUser(db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id));
+  return publicUser(db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as UserRow | undefined);
 }
 
 /**
@@ -138,11 +194,11 @@ export function getUserById(id) {
  * Returns the public user on success, or null — never a reason, so the caller
  * can't accidentally tell an attacker which half was wrong.
  */
-export function verifyCredentials(username, password) {
+export function verifyCredentials(username: unknown, password: unknown): PublicUser | null {
   initUsers();
   const row = db
     .prepare('SELECT * FROM admin_users WHERE username = ? COLLATE NOCASE')
-    .get(String(username || '').trim());
+    .get(String(username || '').trim()) as UserRow | undefined;
 
   // Always hash, even with no row, so both paths take the same time.
   const ok = verifyPassword(String(password || ''), row ? row.password_hash : DUMMY_HASH);
@@ -150,21 +206,21 @@ export function verifyCredentials(username, password) {
   return publicUser(row);
 }
 
-export function recordLogin(id) {
+export function recordLogin(id: number) {
   db.prepare('UPDATE admin_users SET last_login_at = ? WHERE id = ?').run(
     new Date().toISOString(),
     id
   );
 }
 
-function normalisePermissions(role, permissions) {
+function normalisePermissions(role: Role, permissions: unknown): Permission[] {
   if (Array.isArray(permissions)) {
-    return permissions.filter((p) => PERMISSIONS.includes(p));
+    return permissions.filter(isPermission);
   }
   return ROLE_PERMISSIONS[role] || [];
 }
 
-export function createUser({ username, email, name, role, permissions, password }) {
+export function createUser({ username, email, name, role, permissions, password }: NewUserInput): PublicUser {
   initUsers();
 
   const cleanName = String(username || '').trim();
@@ -173,7 +229,7 @@ export function createUser({ username, email, name, role, permissions, password 
     throw new Error('Password must be at least 10 characters');
   }
   // 'master' is not assignable: the one master comes from .env.
-  if (!['developer', 'telemarketer'].includes(role)) {
+  if (!isAssignableRole(role)) {
     throw new Error('Role must be developer or telemarketer');
   }
   if (db.prepare('SELECT 1 FROM admin_users WHERE username = ? COLLATE NOCASE').get(cleanName)) {
@@ -190,25 +246,28 @@ export function createUser({ username, email, name, role, permissions, password 
       cleanName,
       String(email || '').trim(),
       String(name || '').trim() || null,
-      hashPassword(password),
+      hashPassword(String(password)),
       role,
       JSON.stringify(normalisePermissions(role, permissions)),
       new Date().toISOString()
     );
 
-  return getUserById(Number(result.lastInsertRowid));
+  return getUserById(Number(result.lastInsertRowid)) as PublicUser;
 }
 
 const EDITABLE = new Set(['email', 'name', 'role', 'permissions', 'status']);
 
-export function updateUser(id, patch) {
+export function updateUser(
+  id: number,
+  patch: UserPatch
+): { user: PublicUser | null; changed: string[] } | null {
   initUsers();
-  const row = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as UserRow | undefined;
   if (!row) return null;
 
-  const fields = [];
-  const values = [];
-  const changed = [];
+  const fields: string[] = [];
+  const values: string[] = [];
+  const changed: string[] = [];
 
   for (const key of Object.keys(patch)) {
     if (!EDITABLE.has(key)) continue;
@@ -216,20 +275,27 @@ export function updateUser(id, patch) {
     // The master's role, permissions and status are fixed — see the file header.
     if (row.is_master === 1 && key !== 'email' && key !== 'name') continue;
 
-    let value = patch[key];
+    const raw = patch[key];
+    let value: string;
     if (key === 'role') {
-      if (!['developer', 'telemarketer'].includes(value)) continue;
+      if (!isAssignableRole(raw)) continue;
       // Moving someone to a new role resets them to that role's defaults unless
       // the same request also sets permissions explicitly.
       if (patch.permissions === undefined) {
         fields.push('permissions = ?');
-        values.push(JSON.stringify(ROLE_PERMISSIONS[value]));
+        values.push(JSON.stringify(ROLE_PERMISSIONS[raw]));
         changed.push('permissions');
       }
+      value = raw;
+    } else if (key === 'permissions') {
+      value = JSON.stringify(normalisePermissions(row.role, raw));
+    } else if (key === 'status') {
+      if (raw !== 'active' && raw !== 'disabled') continue;
+      value = raw;
+    } else {
+      // email, name
+      value = String(raw ?? '').trim();
     }
-    if (key === 'permissions') value = JSON.stringify(normalisePermissions(row.role, value));
-    if (key === 'status' && !['active', 'disabled'].includes(value)) continue;
-    if (key === 'email' || key === 'name') value = String(value ?? '').trim();
 
     fields.push(`${key} = ?`);
     values.push(value);
@@ -244,7 +310,7 @@ export function updateUser(id, patch) {
       throw new Error("The master password is set in .env, not here");
     }
     fields.push('password_hash = ?');
-    values.push(hashPassword(patch.password));
+    values.push(hashPassword(String(patch.password)));
     changed.push('password');
   }
 
@@ -254,9 +320,9 @@ export function updateUser(id, patch) {
   return { user: getUserById(id), changed };
 }
 
-export function deleteUser(id) {
+export function deleteUser(id: number): PublicUser | null {
   initUsers();
-  const row = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as UserRow | undefined;
   if (!row) return null;
   if (row.is_master === 1) throw new Error('The master account cannot be deleted');
 

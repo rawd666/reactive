@@ -5,10 +5,12 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import adminRouter from './server/admin.js';
-import { registerClient } from './server/db.js';
-import { planMeta } from './server/plan-meta.js';
-import { initAdminConfig } from './server/auth.js';
+import type { NextFunction, Request, Response } from 'express';
+import adminRouter from './server/admin.ts';
+import { registerClient } from './server/db.ts';
+import { planMeta, isPlanId } from './server/plan-meta.ts';
+import type { PlanId } from './server/plan-meta.ts';
+import { initAdminConfig } from './server/auth.ts';
 
 dotenv.config({ quiet: true }); // Load environment variables from .env file
 
@@ -37,7 +39,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://reactiveweb.dev
 // Never in production: there, the only allowed origins are the configured ones.
 const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
-function isAllowedOrigin(origin) {
+function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   return !IS_PRODUCTION && LOCALHOST_ORIGIN.test(origin);
@@ -59,11 +61,40 @@ app.use(express.static(distPath)); // Serve static files from the dist directory
 
 // Maps the human-readable package id to the real PayPal plan id, so the server can
 // confirm the paid subscription actually matches the package being activated.
-const PLAN_ID_MAP = {
+const PLAN_ID_MAP: Record<PlanId, string | undefined> = {
   launch: process.env.VITE_PAYPAL_PLAN_LAUNCH,
   grow: process.env.VITE_PAYPAL_PLAN_GROW,
   scale: process.env.VITE_PAYPAL_PLAN_SCALE,
 };
+
+// The parts of PayPal's subscription resource this server reads.
+interface PayPalSubscription {
+  status: string;
+  plan_id: string;
+  subscriber?: {
+    email_address?: string;
+    name?: { given_name?: string; surname?: string };
+  };
+}
+
+interface ActivateBody {
+  subscriptionID?: string;
+  planId?: string;
+  agreedToTerms?: unknown;
+  termsVersion?: string;
+  agreedToPrivacy?: unknown;
+  privacyVersion?: string;
+  businessName?: unknown;
+  agreedToContract?: unknown;
+}
+
+interface ContactBody {
+  name?: string;
+  email?: string;
+  business?: string;
+  package?: string;
+  message?: string;
+}
 
 // Replay protection now lives in the database: clients.subscription_id is UNIQUE, so a
 // repeated activation finds the existing row instead of registering or emailing twice.
@@ -111,7 +142,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Exchanges the PayPal client credentials for a short-lived API access token
-async function getPayPalAccessToken() {
+async function getPayPalAccessToken(): Promise<string> {
   const auth = Buffer.from(
     `${process.env.VITE_PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`
   ).toString('base64');
@@ -126,13 +157,13 @@ async function getPayPalAccessToken() {
   });
 
   if (!response.ok) throw new Error('Failed to authenticate with PayPal');
-  const data = await response.json();
+  const data = (await response.json()) as { access_token: string };
   return data.access_token;
 }
 
 // Confirms a subscription is really active with PayPal before treating the checkout as paid
 app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
-  const { subscriptionID, planId, agreedToTerms, termsVersion, agreedToPrivacy, privacyVersion, businessName, agreedToContract } = req.body;
+  const { subscriptionID, planId, agreedToTerms, termsVersion, agreedToPrivacy, privacyVersion, businessName, agreedToContract }: ActivateBody = req.body;
 
   if (!subscriptionID || !planId) {
     return res.status(400).json({ error: 'Missing subscription details' });
@@ -159,13 +190,13 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
     );
 
     if (!subResponse.ok) throw new Error('Could not verify subscription with PayPal');
-    const subscription = await subResponse.json();
+    const subscription = (await subResponse.json()) as PayPalSubscription;
 
     if (subscription.status !== 'ACTIVE') {
       return res.status(402).json({ error: 'Subscription is not active' });
     }
 
-    const expectedPlanId = PLAN_ID_MAP[planId];
+    const expectedPlanId = isPlanId(planId) ? PLAN_ID_MAP[planId] : undefined;
     if (!expectedPlanId || subscription.plan_id !== expectedPlanId) {
       return res.status(400).json({ error: 'Subscription plan does not match the requested package' });
     }
@@ -254,7 +285,7 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
 
 // Post route to handle form submission
 app.post('/api/contact', contactLimiter, (req, res) => {
-  const { name, email, business, package: selectedPackage, message } = req.body;
+  const { name, email, business, package: selectedPackage, message }: ContactBody = req.body;
 
   const mailOptions = {
     // Sent from our own address (the server won't relay mail "from" a visitor's
@@ -266,7 +297,7 @@ app.post('/api/contact', contactLimiter, (req, res) => {
     text: `Name: ${name}\nEmail: ${email}\nBusiness: ${business}\nPackage: ${selectedPackage}\nMessage: ${message}`
   };
 
-  transporter.sendMail(mailOptions, (error, info) => {
+  transporter.sendMail(mailOptions, (error) => {
     if (error) {
       console.error(error);
       return res.status(500).json({ error: 'Failed to send email' });
@@ -276,13 +307,13 @@ app.post('/api/contact', contactLimiter, (req, res) => {
 });
 
 // Fallback: serve index.html for any other GET request so React Router can handle client-side routes
-app.use((req, res) => {
+app.use((_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Catches the error the cors() middleware raises for disallowed origins, so it returns a
 // plain 403 instead of falling through to Express's default error handler.
-app.use((err, req, res, next) => {
+app.use((err: Error, _req: Request, res: Response, next: NextFunction) => {
   if (err.message === 'Not allowed by CORS') {
     return res.status(403).json({ error: 'Origin not allowed' });
   }

@@ -13,12 +13,13 @@ import {
   getEvents,
   updateClient,
   addRevision,
-} from './db.js';
+} from './db.ts';
+import type { ClientRow, ClientPatch } from './db.ts';
 import {
   issueSession,
   clearSession,
   initAdminConfig,
-} from './auth.js';
+} from './auth.ts';
 import {
   listUsers,
   createUser,
@@ -30,9 +31,9 @@ import {
   ROLES,
   PERMISSIONS,
   ROLE_PERMISSIONS,
-} from './users.js';
-import { recordAudit, listAudit, auditUsernames, AUDIT_ACTIONS } from './audit.js';
-import { currentUser, requirePermission, requireMaster } from './access.js';
+} from './users.ts';
+import { recordAudit, listAudit, auditUsernames, AUDIT_ACTIONS } from './audit.ts';
+import { currentUser, requirePermission, requireMaster } from './access.ts';
 
 const router = express.Router();
 
@@ -90,7 +91,7 @@ router.get('/session', (req, res) => {
 
 // --- clients -------------------------------------------------------------
 
-function decorate(client) {
+function decorate(client: ClientRow) {
   const supportEnds = client.support_ends_at ? new Date(client.support_ends_at) : null;
   const daysLeft = supportEnds
     ? Math.ceil((supportEnds.getTime() - Date.now()) / 86400000)
@@ -112,15 +113,15 @@ router.get('/clients', requirePermission('clients:read'), (req, res) => {
   res.json({ clients: clients.map(decorate) });
 });
 
-router.get('/clients/:code', requirePermission('clients:read'), (req, res) => {
+router.get<{ code: string }>('/clients/:code', requirePermission('clients:read'), (req, res) => {
   const client = getClient(req.params.code);
   if (!client) return res.status(404).json({ error: 'Not found' });
   recordAudit(req, { action: 'read', resource: 'clients', resourceId: client.client_code });
   res.json({ client: decorate(client), events: getEvents(client.id) });
 });
 
-router.patch('/clients/:code', requirePermission('clients:write'), (req, res) => {
-  const patch = req.body || {};
+router.patch<{ code: string }>('/clients/:code', requirePermission('clients:write'), (req, res) => {
+  const patch: ClientPatch = req.body || {};
   const updated = updateClient(req.params.code, patch);
   if (!updated) return res.status(404).json({ error: 'Not found' });
   recordAudit(req, {
@@ -132,7 +133,7 @@ router.patch('/clients/:code', requirePermission('clients:write'), (req, res) =>
   res.json({ client: decorate(updated) });
 });
 
-router.post('/clients/:code/revision', requirePermission('clients:write'), (req, res) => {
+router.post<{ code: string }>('/clients/:code/revision', requirePermission('clients:write'), (req, res) => {
   const updated = addRevision(req.params.code, req.body?.detail);
   if (!updated) return res.status(404).json({ error: 'Not found' });
   recordAudit(req, {
@@ -163,11 +164,11 @@ router.post('/users', requireMaster, (req, res) => {
     });
     res.status(201).json({ user });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 
-router.patch('/users/:id', requireMaster, (req, res) => {
+router.patch<{ id: string }>('/users/:id', requireMaster, (req, res) => {
   try {
     const result = updateUser(Number(req.params.id), req.body || {});
     if (!result) return res.status(404).json({ error: 'Not found' });
@@ -176,17 +177,18 @@ router.patch('/users/:id', requireMaster, (req, res) => {
       resource: 'users',
       resourceId: req.params.id,
       // Never the new value — a password would end up in the log.
-      detail: `${result.user.username}: ${result.changed.join(', ') || 'no change'}`,
+      detail: `${result.user?.username}: ${result.changed.join(', ') || 'no change'}`,
     });
     res.json({ user: result.user });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 
-router.delete('/users/:id', requireMaster, (req, res) => {
+router.delete<{ id: string }>('/users/:id', requireMaster, (req, res) => {
   const id = Number(req.params.id);
-  const self = currentUser(req);
+  // requireMaster has already resolved the signed-in user.
+  const self = currentUser(req)!;
   if (self.id === id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
@@ -201,14 +203,14 @@ router.delete('/users/:id', requireMaster, (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 
 // --- audit log (master only) ---------------------------------------------
 
 router.get('/audit', requireMaster, (req, res) => {
-  const { limit, offset, username, action, resource } = req.query;
+  const { limit, offset, username, action, resource } = req.query as Record<string, string | undefined>;
   const { entries, hasMore } = listAudit({ limit, offset, username, action, resource });
 
   // Reading the log is itself an action, so it is logged too — but only the

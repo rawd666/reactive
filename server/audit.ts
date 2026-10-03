@@ -8,7 +8,8 @@
 // logged to the console and swallowed, because losing a log line is better than
 // failing the action the operator was performing.
 
-import { db } from './db.js';
+import type { Request } from 'express';
+import { db } from './db.ts';
 
 export const AUDIT_ACTIONS = [
   'read',
@@ -18,7 +19,38 @@ export const AUDIT_ACTIONS = [
   'login',
   'login_failed',
   'logout',
-];
+] as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+export type AuditRow = {
+  id: number;
+  user_id: number | null;
+  username: string;
+  action: AuditAction;
+  resource: string;
+  resource_id: string | null;
+  detail: string | null;
+  ip: string | null;
+  created_at: string;
+};
+
+export interface AuditEntry {
+  action: AuditAction;
+  resource: string;
+  resourceId?: string | number | null;
+  detail?: string | null;
+  username?: string;
+}
+
+// Filter values arrive straight from the query string, hence the loose types.
+export interface AuditFilter {
+  limit?: unknown;
+  offset?: unknown;
+  username?: string;
+  action?: string;
+  resource?: string;
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS audit_log (
@@ -46,7 +78,10 @@ const insert = db.prepare(
  * Writes one audit row. `req` supplies the signed-in user and the client IP;
  * pass `username` explicitly for events with no session yet (a failed sign-in).
  */
-export function recordAudit(req, { action, resource, resourceId = null, detail = null, username }) {
+export function recordAudit(
+  req: Request | null,
+  { action, resource, resourceId = null, detail = null, username }: AuditEntry
+) {
   try {
     const user = req?.adminUser || null;
     insert.run(
@@ -60,7 +95,7 @@ export function recordAudit(req, { action, resource, resourceId = null, detail =
       new Date().toISOString()
     );
   } catch (err) {
-    console.error('[audit] could not record entry:', err.message);
+    console.error('[audit] could not record entry:', (err as Error).message);
   }
 }
 
@@ -68,9 +103,11 @@ export function recordAudit(req, { action, resource, resourceId = null, detail =
  * Most recent entries first, with optional filters. Returns one row more than
  * asked for internally to work out `hasMore` without a second COUNT query.
  */
-export function listAudit({ limit = 100, offset = 0, username, action, resource } = {}) {
-  const where = [];
-  const values = [];
+export function listAudit(
+  { limit = 100, offset = 0, username, action, resource }: AuditFilter = {}
+): { entries: AuditRow[]; hasMore: boolean } {
+  const where: string[] = [];
+  const values: string[] = [];
 
   if (username) {
     where.push('username = ? COLLATE NOCASE');
@@ -92,16 +129,16 @@ export function listAudit({ limit = 100, offset = 0, username, action, resource 
     .prepare(
       `SELECT * FROM audit_log ${clause} ORDER BY id DESC LIMIT ? OFFSET ?`
     )
-    .all(...values, capped + 1, Math.max(Number(offset) || 0, 0));
+    .all(...values, capped + 1, Math.max(Number(offset) || 0, 0)) as AuditRow[];
 
   const hasMore = rows.length > capped;
   return { entries: hasMore ? rows.slice(0, capped) : rows, hasMore };
 }
 
 /** Distinct usernames that appear in the log, for the filter dropdown. */
-export function auditUsernames() {
-  return db
+export function auditUsernames(): string[] {
+  const rows = db
     .prepare('SELECT DISTINCT username FROM audit_log ORDER BY username COLLATE NOCASE')
-    .all()
-    .map((r) => r.username);
+    .all() as { username: string }[];
+  return rows.map((r) => r.username);
 }

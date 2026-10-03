@@ -1,4 +1,23 @@
-export const PLANS = [
+/// <reference types="vite/client" />
+// Also read by scripts/make-contract.ts under Node, where import.meta.env is
+// undefined — hence the optional chaining on planId.
+
+export type PlanId = "launch" | "grow" | "scale";
+
+export interface Plan {
+  id: PlanId;
+  name: string;
+  planId: string | undefined;
+  sub: string;
+  price: string;
+  priceUnit: string;
+  monthly: string;
+  featured: boolean;
+  badge?: string;
+  features: string[];
+}
+
+export const PLANS: Plan[] = [
   {
     id: "launch",
     name: "Launch",

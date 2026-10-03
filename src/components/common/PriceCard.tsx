@@ -1,7 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
+import type { Plan } from "../../data/plans";
 
-function PriceCard({ plan }) {
+interface PriceCardProps {
+  plan: Plan;
+}
+
+function PriceCard({ plan }: PriceCardProps) {
   const navigate = useNavigate();
 
   return (

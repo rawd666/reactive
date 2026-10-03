@@ -21,6 +21,21 @@ const DEFAULT_CHARACTERS = " .:-+*=%@#";
 // about 2π × this wide, i.e. ~600px.
 const WAVE_UNIT = 96;
 
+interface AsciiWavesProps {
+  characters?: string;
+  color?: string;
+  elementSize?: number;
+  speed?: number;
+  noiseScale?: number;
+  intensity?: number;
+  fadeBottom?: number;
+  angle?: number;
+  twist?: number;
+  interactive?: boolean;
+  cursorIntensity?: number;
+  className?: string;
+}
+
 function AsciiWaves({
   characters = DEFAULT_CHARACTERS,
   color = "rgba(255,31,125,0.55)",
@@ -38,17 +53,19 @@ function AsciiWaves({
   interactive = true,
   cursorIntensity = 1,
   className = "",
-}) {
-  const canvasRef = useRef(null);
+}: AsciiWavesProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Pointer position lives in a ref: it changes every mousemove and must never
   // trigger a React render.
   const pointerRef = useRef({ x: 0, y: 0, strength: 0 });
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const host = canvas.parentElement;
-    const ctx = canvas.getContext("2d");
+    // The canvas is always mounted by the time the effect runs, and it always has
+    // a parent; a 2D context is available in every browser this site supports.
+    const canvas = canvasRef.current!;
+    const host = canvas.parentElement!;
+    const ctx = canvas.getContext("2d")!;
     const ramp = characters.length > 1 ? characters : DEFAULT_CHARACTERS;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -93,7 +110,7 @@ function AsciiWaves({
       return true;
     }
 
-    function draw(elapsed) {
+    function draw(elapsed: number) {
       const t = elapsed * 0.0006 * speed;
       const pointer = pointerRef.current;
       const reach = cellWidth * 14; // how far the cursor swell carries
@@ -167,7 +184,7 @@ function AsciiWaves({
       ctx.globalAlpha = 1;
     }
 
-    function loop(now) {
+    function loop(now: DOMHighResTimeStamp) {
       if (!running) return;
       draw(now - startedAt);
       frame = requestAnimationFrame(loop);
@@ -213,7 +230,7 @@ function AsciiWaves({
     });
     resize.observe(host);
 
-    function onPointerMove(e) {
+    function onPointerMove(e: PointerEvent) {
       const rect = host.getBoundingClientRect();
       pointerRef.current = {
         x: e.clientX - rect.left,

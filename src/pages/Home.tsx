@@ -11,7 +11,7 @@ import { PROJECTS } from "../data/projects";
 
 function Home() {
   const navigate = useNavigate();
-  const [expandedProject, setExpandedProject] = useState(null);
+  const [expandedProject, setExpandedProject] = useState<string | null>(null);
 
   return (
     <>

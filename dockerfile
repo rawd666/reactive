@@ -1,6 +1,6 @@
 ARG NODE_VERSION=24.14.0-slim
 
-# ---- Build stage: compiles the React app with Vite ----
+# ---- Build stage: type-checks everything, then bundles the React app with Vite ----
 FROM node:${NODE_VERSION} AS build
 
 WORKDIR /app
@@ -30,7 +30,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 
-COPY server.js ./
+# Node runs the .ts files directly (built-in type stripping), so the server ships as source.
+COPY server.ts ./
 COPY server ./server
 COPY --from=build /app/dist ./dist
 
@@ -43,4 +44,4 @@ USER node
 
 EXPOSE 5173
 
-CMD ["node", "server.js"]
+CMD ["node", "server.ts"]

@@ -149,7 +149,7 @@ function Checkout() {
 
           <PayPalScriptProvider
             options={{
-              "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
+              clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID,
               components: "buttons",
               intent: "subscription",
               vault: true,
@@ -158,8 +158,9 @@ function Checkout() {
             <PayPalButtons
               style={{ label: "subscribe" }}
               disabled={status.loading || !agreed || !agreedContract}
-              createSubscription={(data, actions) =>
-                actions.subscription.create({ plan_id: plan.planId })
+              createSubscription={(_data, actions) =>
+                // planId comes from the VITE_PAYPAL_PLAN_* build args, set for every deploy.
+                actions.subscription.create({ plan_id: plan.planId! })
               }
               onApprove={async (data) => {
                 setStatus({ loading: true, error: "" });
@@ -182,7 +183,7 @@ function Checkout() {
                   if (!response.ok) throw new Error("Activation failed");
 
                   navigate("/checkout/thank-you", { state: { planName: plan.name } });
-                } catch (err) {
+                } catch {
                   setStatus({
                     loading: false,
                     error:

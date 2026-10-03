@@ -1,20 +1,27 @@
-import { useState } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
+
+interface ContactFields {
+  name: string;
+  email: string;
+  business: string;
+  package: string;
+  message: string;
+}
+
+const EMPTY_FORM: ContactFields = { name: "", email: "", business: "", package: "", message: "" };
 
 function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState({ loading: false, error: "" }); // Tracks API state
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    business: "",
-    package: "",
-    message: "",
-  });
+  const [form, setForm] = useState<ContactFields>(EMPTY_FORM);
 
-  const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+  const update =
+    (field: keyof ContactFields) =>
+    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm({ ...form, [field]: e.target.value });
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStatus({ loading: true, error: "" });
 
@@ -29,10 +36,10 @@ function ContactForm() {
         setSubmitted(true);
         setStatus({ loading: false, error: "" });
       } else {
-        const data = await response.json();
+        const data: { error?: string } = await response.json();
         setStatus({ loading: false, error: data.error || "Failed to send email." });
       }
-    } catch (err) {
+    } catch {
       setStatus({ loading: false, error: "Server connection error. Please try again." });
     }
   };
@@ -55,7 +62,7 @@ function ContactForm() {
           style={{ marginTop: 20, alignSelf: "flex-start" }}
           onClick={() => {
             setSubmitted(false);
-            setForm({ name: "", email: "", business: "", package: "", message: "" }); // Reset form
+            setForm(EMPTY_FORM); // Reset form
           }}
         >
           Send another message

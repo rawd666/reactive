@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ChangeEvent, ComponentType, FormEvent } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Users, UserCog, ScrollText, LogOut, Trash2, Plus } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Seo from "../components/common/Seo";
+import type {
+  AdminUser,
+  AuditResponse,
+  Client,
+  ClientStatus,
+  Permission,
+  Role,
+  SessionResponse,
+  UserStatus,
+  UsersResponse,
+} from "../types/admin";
 
 // Owner-only dashboard. Nothing here is secret on its own — the protection is
 // server-side: every /api/admin/* route checks the signed-in user's permissions
@@ -12,7 +25,18 @@ import Seo from "../components/common/Seo";
 // Each section is its own route under /admin, so a section can be linked to,
 // reloaded, and reached with the back button.
 
-function fmtDate(iso) {
+// Props every section panel receives from the dashboard's router.
+interface PanelProps {
+  me: AdminUser;
+  onSignedOut: () => void;
+}
+
+// An Error that also carries the HTTP status the API answered with.
+interface ApiError extends Error {
+  status?: number;
+}
+
+function fmtDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
@@ -21,7 +45,7 @@ function fmtDate(iso) {
   });
 }
 
-function fmtDateTime(iso) {
+function fmtDateTime(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString(undefined, {
     month: "short",
@@ -32,24 +56,24 @@ function fmtDateTime(iso) {
   });
 }
 
-function can(user, permission) {
+function can(user: AdminUser | null, permission: Permission) {
   if (!user) return false;
   return user.isMaster || user.permissions.includes(permission);
 }
 
 // Turns "clients:write" into "clients · write" for the permission checkboxes.
-function permissionLabel(permission) {
+function permissionLabel(permission: Permission) {
   return permission.replace(":", " · ");
 }
 
-async function api(path, options) {
+async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`/api/admin${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const error = new Error(data.error || `Request failed (${res.status})`);
+    const error: ApiError = new Error(data.error || `Request failed (${res.status})`);
     // The status rides along so callers can tell "session expired" (401) from
     // "you're not allowed" (403) — the server's message alone doesn't say.
     error.status = res.status;
@@ -58,13 +82,18 @@ async function api(path, options) {
   return data;
 }
 
-function Login({ onSignedIn, seeded }) {
+interface LoginProps {
+  onSignedIn: (user: AdminUser) => void;
+  seeded: boolean;
+}
+
+function Login({ onSignedIn, seeded }: LoginProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function submit(e) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
     setError("");
@@ -78,7 +107,7 @@ function Login({ onSignedIn, seeded }) {
       if (!res.ok) throw new Error(data.error || "Sign-in failed");
       onSignedIn(data.user);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
       setBusy(false);
     }
   }
@@ -130,11 +159,16 @@ function Login({ onSignedIn, seeded }) {
   );
 }
 
-function ClientRow({ client, onChange }) {
+interface ClientRowProps {
+  client: Client;
+  onChange: (client: Client) => void;
+}
+
+function ClientRow({ client, onChange }: ClientRowProps) {
   const [business, setBusiness] = useState(client.business_name || "");
   const [saving, setSaving] = useState(false);
 
-  async function patch(body) {
+  async function patch(body: { business_name?: string; status?: ClientStatus }) {
     setSaving(true);
     const res = await fetch(`/api/admin/clients/${client.client_code}`, {
       method: "PATCH",
@@ -205,7 +239,7 @@ function ClientRow({ client, onChange }) {
       <td>
         <select
           value={client.status}
-          onChange={(e) => patch({ status: e.target.value })}
+          onChange={(e) => patch({ status: e.target.value as ClientStatus })}
           disabled={saving}
         >
           <option value="active">active</option>
@@ -228,7 +262,7 @@ function ClientRow({ client, onChange }) {
 }
 
 // Heading every panel opens with, so sections stay visually consistent.
-function PanelHeading({ title, note }) {
+function PanelHeading({ title, note }: { title: string; note?: string }) {
   return (
     <header className="rx-admin-panel-head">
       <h1 className="rx-h2">{title}</h1>
@@ -237,8 +271,8 @@ function PanelHeading({ title, note }) {
   );
 }
 
-function ClientsPanel({ onSignedOut }) {
-  const [clients, setClients] = useState(null);
+function ClientsPanel({ onSignedOut }: Pick<PanelProps, "onSignedOut">) {
+  const [clients, setClients] = useState<Client[] | null>(null);
   const [error, setError] = useState("");
 
   // State is set inside the promise callbacks rather than synchronously in the
@@ -253,7 +287,7 @@ function ClientsPanel({ onSignedOut }) {
           if (!cancelled) onSignedOut();
           return;
         }
-        const data = await res.json();
+        const data: { clients: Client[] } = await res.json();
         if (!cancelled) setClients(data.clients);
       })
       .catch(() => {
@@ -265,9 +299,9 @@ function ClientsPanel({ onSignedOut }) {
     };
   }, [onSignedOut]);
 
-  function replace(updated) {
+  function replace(updated: Client) {
     setClients((prev) =>
-      prev.map((c) => (c.client_code === updated.client_code ? updated : c))
+      prev && prev.map((c) => (c.client_code === updated.client_code ? updated : c))
     );
   }
 
@@ -291,7 +325,7 @@ function ClientsPanel({ onSignedOut }) {
         </p>
       )}
 
-      {clients?.length > 0 && (
+      {clients && clients.length > 0 && (
         <div style={{ overflowX: "auto", marginTop: 32 }}>
           <table className="rx-admin-table">
             <thead>
@@ -321,24 +355,42 @@ function ClientsPanel({ onSignedOut }) {
 
 // --- users (master only) -------------------------------------------------
 
-function NewUserForm({ roles, onCreated }) {
-  const blank = { username: "", email: "", name: "", role: "telemarketer", password: "" };
+interface NewUserFormProps {
+  roles: Role[];
+  onCreated: (user: AdminUser) => void;
+}
+
+interface NewUserFields {
+  username: string;
+  email: string;
+  name: string;
+  role: Role;
+  password: string;
+}
+
+function NewUserForm({ roles, onCreated }: NewUserFormProps) {
+  const blank: NewUserFields = { username: "", email: "", name: "", role: "telemarketer", password: "" };
   const [form, setForm] = useState(blank);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set =
+    (key: keyof NewUserFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  async function submit(e) {
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const { user } = await api("/users", { method: "POST", body: JSON.stringify(form) });
+      const { user } = await api<{ user: AdminUser }>("/users", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
       setForm(blank);
       onCreated(user);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     }
     setBusy(false);
   }
@@ -374,23 +426,40 @@ function NewUserForm({ roles, onCreated }) {
   );
 }
 
-function UserRow({ user, permissions, onChange, onDelete, isSelf }) {
+interface UserRowProps {
+  user: AdminUser;
+  permissions: Permission[];
+  onChange: (user: AdminUser) => void;
+  onDelete: (id: number) => void;
+  isSelf: boolean;
+}
+
+interface UserPatch {
+  role?: Role;
+  status?: UserStatus;
+  permissions?: Permission[];
+}
+
+function UserRow({ user, permissions, onChange, onDelete, isSelf }: UserRowProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function patch(body) {
+  async function patch(body: UserPatch) {
     setBusy(true);
     setError("");
     try {
-      const data = await api(`/users/${user.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      const data = await api<{ user: AdminUser }>(`/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
       onChange(data.user);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     }
     setBusy(false);
   }
 
-  function togglePermission(permission) {
+  function togglePermission(permission: Permission) {
     const next = user.permissions.includes(permission)
       ? user.permissions.filter((p) => p !== permission)
       : [...user.permissions, permission];
@@ -404,7 +473,7 @@ function UserRow({ user, permissions, onChange, onDelete, isSelf }) {
       await api(`/users/${user.id}`, { method: "DELETE" });
       onDelete(user.id);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
       setBusy(false);
     }
   }
@@ -430,7 +499,11 @@ function UserRow({ user, permissions, onChange, onDelete, isSelf }) {
         {user.isMaster ? (
           <span style={{ textTransform: "capitalize" }}>{user.role}</span>
         ) : (
-          <select value={user.role} onChange={(e) => patch({ role: e.target.value })} disabled={busy}>
+          <select
+            value={user.role}
+            onChange={(e) => patch({ role: e.target.value as Role })}
+            disabled={busy}
+          >
             <option value="developer">developer</option>
             <option value="telemarketer">telemarketer</option>
           </select>
@@ -457,7 +530,7 @@ function UserRow({ user, permissions, onChange, onDelete, isSelf }) {
         ) : (
           <select
             value={user.status}
-            onChange={(e) => patch({ status: e.target.value })}
+            onChange={(e) => patch({ status: e.target.value as UserStatus })}
             disabled={busy}
           >
             <option value="active">active</option>
@@ -482,17 +555,17 @@ function UserRow({ user, permissions, onChange, onDelete, isSelf }) {
   );
 }
 
-function UsersPanel({ me, onSignedOut }) {
-  const [state, setState] = useState(null);
+function UsersPanel({ me, onSignedOut }: PanelProps) {
+  const [state, setState] = useState<UsersResponse | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    api("/users")
+    api<UsersResponse>("/users")
       .then((data) => {
         if (!cancelled) setState(data);
       })
-      .catch((err) => {
+      .catch((err: ApiError) => {
         if (cancelled) return;
         if (err.status === 401) onSignedOut();
         else setError(err.message);
@@ -502,8 +575,8 @@ function UsersPanel({ me, onSignedOut }) {
     };
   }, [onSignedOut]);
 
-  function replace(user) {
-    setState((s) => ({ ...s, users: s.users.map((u) => (u.id === user.id ? user : u)) }));
+  function replace(user: AdminUser) {
+    setState((s) => s && { ...s, users: s.users.map((u) => (u.id === user.id ? user : u)) });
   }
 
   return (
@@ -540,7 +613,7 @@ function UsersPanel({ me, onSignedOut }) {
                     isSelf={user.id === me.id}
                     onChange={replace}
                     onDelete={(id) =>
-                      setState((s) => ({ ...s, users: s.users.filter((u) => u.id !== id) }))
+                      setState((s) => s && { ...s, users: s.users.filter((u) => u.id !== id) })
                     }
                   />
                 ))}
@@ -553,7 +626,7 @@ function UsersPanel({ me, onSignedOut }) {
           </h2>
           <NewUserForm
             roles={state.roles}
-            onCreated={(user) => setState((s) => ({ ...s, users: [...s.users, user] }))}
+            onCreated={(user) => setState((s) => s && { ...s, users: [...s.users, user] })}
           />
           <p className="rx-admin-note">
             The master account is set by ADMIN_USER / ADMIN_PASSWORD in .env and can&apos;t be
@@ -569,17 +642,23 @@ function UsersPanel({ me, onSignedOut }) {
 
 const PAGE_SIZE = 100;
 
-function AuditPanel({ onSignedOut }) {
-  const [state, setState] = useState(null);
+interface AuditFilters {
+  username: string;
+  action: string;
+  resource: string;
+}
+
+function AuditPanel({ onSignedOut }: Pick<PanelProps, "onSignedOut">) {
+  const [state, setState] = useState<AuditResponse | null>(null);
   const [error, setError] = useState("");
-  const [filters, setFilters] = useState({ username: "", action: "", resource: "" });
+  const [filters, setFilters] = useState<AuditFilters>({ username: "", action: "", resource: "" });
   const [loadingMore, setLoadingMore] = useState(false);
 
   const query = useCallback(
-    (offset) => {
+    (offset: number) => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
       for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
-      return api(`/audit?${params}`);
+      return api<AuditResponse>(`/audit?${params}`);
     },
     [filters]
   );
@@ -590,7 +669,7 @@ function AuditPanel({ onSignedOut }) {
       .then((data) => {
         if (!cancelled) setState(data);
       })
-      .catch((err) => {
+      .catch((err: ApiError) => {
         if (cancelled) return;
         if (err.status === 401) onSignedOut();
         else setError(err.message);
@@ -601,17 +680,19 @@ function AuditPanel({ onSignedOut }) {
   }, [query, onSignedOut]);
 
   async function loadMore() {
+    if (!state) return;
     setLoadingMore(true);
     try {
       const data = await query(state.entries.length);
-      setState((s) => ({ ...data, entries: [...s.entries, ...data.entries] }));
+      setState((s) => ({ ...data, entries: [...(s?.entries ?? []), ...data.entries] }));
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     }
     setLoadingMore(false);
   }
 
-  const set = (key) => (e) => setFilters((f) => ({ ...f, [key]: e.target.value }));
+  const set = (key: keyof AuditFilters) => (e: ChangeEvent<HTMLSelectElement>) =>
+    setFilters((f) => ({ ...f, [key]: e.target.value }));
 
   return (
     <>
@@ -654,7 +735,7 @@ function AuditPanel({ onSignedOut }) {
         <p style={{ marginTop: 24 }}>Nothing recorded yet for that filter.</p>
       )}
 
-      {state?.entries.length > 0 && (
+      {state && state.entries.length > 0 && (
         <>
           <div style={{ overflowX: "auto", marginTop: 20 }}>
             <table className="rx-admin-table">
@@ -716,7 +797,15 @@ function AuditPanel({ onSignedOut }) {
 // `when` decides who sees the item. It only hides the menu entry and its route:
 // the server checks permissions again on every request, so a hidden section is
 // not a protected one.
-const SECTIONS = [
+interface Section {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  Panel: ComponentType<PanelProps>;
+  when: (user: AdminUser) => boolean;
+}
+
+const SECTIONS: Section[] = [
   {
     id: "clients",
     label: "Clients",
@@ -740,7 +829,13 @@ const SECTIONS = [
   },
 ];
 
-function Menu({ sections, me, onSignOut }) {
+interface MenuProps {
+  sections: Section[];
+  me: AdminUser;
+  onSignOut: () => void;
+}
+
+function Menu({ sections, me, onSignOut }: MenuProps) {
   return (
     <aside className="rx-admin-sidebar">
       <div className="rx-eyebrow">admin</div>
@@ -779,13 +874,13 @@ function UnknownSection() {
       <PanelHeading title="Not found" note="That section doesn't exist yet." />
       <p style={{ marginTop: 24 }}>
         Pick one from the menu — or add it to SECTIONS in{" "}
-        <code className="rx-mono">src/pages/Admin.jsx</code>.
+        <code className="rx-mono">src/pages/Admin.tsx</code>.
       </p>
     </>
   );
 }
 
-function Dashboard({ me, onSignedOut }) {
+function Dashboard({ me, onSignedOut }: PanelProps) {
   async function signOut() {
     await fetch("/api/admin/logout", { method: "POST" });
     onSignedOut();
@@ -818,7 +913,7 @@ function Dashboard({ me, onSignedOut }) {
 function Admin() {
   // `me` doubles as the signed-in flag: null once checked and signed out,
   // undefined while the session request is still in flight.
-  const [me, setMe] = useState(undefined);
+  const [me, setMe] = useState<AdminUser | null | undefined>(undefined);
   const [seeded, setSeeded] = useState(false);
 
   // Stable identity so the panels' fetch effects don't re-run on every render.
@@ -827,7 +922,7 @@ function Admin() {
   useEffect(() => {
     fetch("/api/admin/session")
       .then((r) => r.json())
-      .then((d) => {
+      .then((d: SessionResponse) => {
         setMe(d.signedIn ? d.user : null);
         setSeeded(Boolean(d.seeded));
       })

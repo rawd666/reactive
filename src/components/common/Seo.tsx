@@ -11,7 +11,7 @@ export const BASE_URL = "https://reactiveweb.dev";
 const DEFAULT_IMAGE = `${BASE_URL}/og-image.png`;
 const DEFAULT_TITLE = `${SITE_NAME} — Custom React Websites for Small Businesses`;
 
-function upsert(selector, tagName, attrs) {
+function upsert(selector: string, tagName: string, attrs: Record<string, string | null | undefined>) {
   let el = document.head.querySelector(selector);
   if (!el) {
     el = document.createElement(tagName);
@@ -23,7 +23,15 @@ function upsert(selector, tagName, attrs) {
   }
 }
 
-function Seo({ title, description, path = "", image = DEFAULT_IMAGE, noindex = false }) {
+interface SeoProps {
+  title?: string;
+  description?: string;
+  path?: string;
+  image?: string;
+  noindex?: boolean;
+}
+
+function Seo({ title, description, path = "", image = DEFAULT_IMAGE, noindex = false }: SeoProps) {
   const fullTitle = title ? `${title} | ${SITE_NAME}` : DEFAULT_TITLE;
   const url = `${BASE_URL}${path}`;
 
