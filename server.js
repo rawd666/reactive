@@ -89,17 +89,24 @@ const contactLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-// The address clients see in their inbox. Gmail silently rewrites this to the
-// authenticated account UNLESS the address is verified under
-// Gmail → Settings → Accounts → "Send mail as". Override with MAIL_FROM in .env.
+// The address receipts and notifications are sent from. It must be the mailbox
+// SMTP_USER logs into — reactiveweb.dev's SPF record (`v=spf1 mx -all`) rejects
+// mail for the domain that doesn't leave through its own mail server.
 const MAIL_FROM = process.env.MAIL_FROM || 'Reactive <rawd@reactiveweb.dev>';
+// Where contact form submissions land.
+const CONTACT_TO = process.env.CONTACT_TO || 'contact@reactiveweb.dev';
+// Where new-subscription notifications land.
+const OWNER_EMAIL = process.env.OWNER_EMAIL || 'rawd@reactiveweb.dev';
 
-// Configure the email transporter using Gmail
+// Configure the email transporter using the reactiveweb.dev mail server
+const smtpPort = Number(process.env.SMTP_PORT) || 465;
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST || 'bareed.openly.ae',
+  port: smtpPort,
+  secure: smtpPort === 465, // 465 = implicit TLS; 587 upgrades via STARTTLS
   auth: {
-    user: process.env.GMAIL_USER,        // Gmail address
-    pass: process.env.GMAIL_APP_PASSWORD // 16-character Gmail App Password
+    user: process.env.SMTP_USER, // rawd@reactiveweb.dev
+    pass: process.env.SMTP_PASS,
   }
 });
 
@@ -195,7 +202,7 @@ app.post('/api/subscription/activate', activateLimiter, async (req, res) => {
     transporter.sendMail(
       {
         from: MAIL_FROM,
-        to: process.env.GMAIL_USER,
+        to: OWNER_EMAIL,
         subject: `New subscription: ${planId} (${client.client_code})`,
         text: `A new subscription was confirmed and registered.\n\nClient ID: ${client.client_code}\nBusiness: ${client.business_name || '(not provided — set it in /admin)'}\nPlan: ${planId}\nSubscription ID: ${subscriptionID}\nSubscriber: ${fullName || 'unknown'}\nSubscriber email: ${subscriberEmail || 'unknown'}\n\nRevisions included: ${meta.revisionRounds ?? 'unlimited'}\nSupport ends: ${client.support_ends_at || 'n/a'}\n\nTerms & Conditions accepted: yes (version ${termsVersion})\nPrivacy Policy accepted: yes (version ${privacyVersion})\nProject agreement confirmed: yes\nAccepted at: ${new Date().toISOString()}\nRequest IP: ${req.ip}`,
       },
@@ -250,8 +257,11 @@ app.post('/api/contact', contactLimiter, (req, res) => {
   const { name, email, business, package: selectedPackage, message } = req.body;
 
   const mailOptions = {
-    from: email,
-    to: process.env.GMAIL_USER, // Sends the email to yourself
+    // Sent from our own address (the server won't relay mail "from" a visitor's
+    // domain); replying goes straight to the visitor.
+    from: MAIL_FROM,
+    replyTo: email,
+    to: CONTACT_TO,
     subject: `New Contact Form Submission from ${name}`,
     text: `Name: ${name}\nEmail: ${email}\nBusiness: ${business}\nPackage: ${selectedPackage}\nMessage: ${message}`
   };
