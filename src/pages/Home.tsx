@@ -17,7 +17,7 @@ function Home() {
     <>
       <Seo
         path="/"
-        title="React Websites"
+        title="Custom React Websites"
         description="Reactive designs and builds fast, custom React websites for small and new businesses across the US. No templates: booking systems, e-commerce, animations, and dashboards built around your business."
       />
       {/* padding-top lives in .rx-hero — it has to account for the nav it tucks under */}
