@@ -9,7 +9,7 @@ import { useEffect } from "react";
 const SITE_NAME = "Reactive";
 export const BASE_URL = "https://reactiveweb.dev";
 const DEFAULT_IMAGE = `${BASE_URL}/og-image.png`;
-const DEFAULT_TITLE = `${SITE_NAME} — Custom React Websites for Small Businesses`;
+const DEFAULT_TITLE = `${SITE_NAME} — Custom React Websites`;
 
 function upsert(selector: string, tagName: string, attrs: Record<string, string | null | undefined>) {
   let el = document.head.querySelector(selector);
