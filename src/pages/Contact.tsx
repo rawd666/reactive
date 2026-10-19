@@ -35,7 +35,7 @@ function Contact() {
               <Phone size={18} />
               <div>
                 <div className="rx-contact-label rx-mono">phone</div>
-                <a href="tel:+19498830458">+1 (949) 883-0458</a>
+                <a href="tel:+19492986948">+1 (949) 298-6948</a>
               </div>
             </div>
             <div className="rx-contact-info-row">

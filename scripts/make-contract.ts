@@ -29,7 +29,7 @@ const ARCHIVE_DIR = path.join(OUT_DIR, "terms-versions");
 const DEVELOPER = {
   name: "Reactive",
   email: "rawd@reactiveweb.dev",
-  phone: "+1 (949) 883-0458",
+  phone: "+1 (949) 298-6948",
 };
 
 const PINK = "#ff1f7d";
