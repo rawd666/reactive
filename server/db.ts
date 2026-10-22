@@ -93,7 +93,7 @@ db.exec(`
 
 // CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so new
 // columns need an explicit additive migration for databases created earlier.
-function ensureColumn(table: string, column: string, definition: string) {
+export function ensureColumn(table: string, column: string, definition: string) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);

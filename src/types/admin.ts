@@ -2,7 +2,12 @@
 // server/audit.ts and server/db.ts). Kept here rather than imported from server/
 // because the browser bundle must never pull in server code.
 
-export type Permission = "clients:read" | "clients:write" | "users:manage" | "audit:read";
+export type Permission =
+  | "clients:read"
+  | "clients:write"
+  | "calls:read"
+  | "users:manage"
+  | "audit:read";
 
 export type Role = "master" | "developer" | "telemarketer";
 
@@ -81,6 +86,83 @@ export interface UsersResponse {
   roles: Role[];
   permissions: Permission[];
   rolePermissions: Record<Role, Permission[]>;
+}
+
+// --- call logs (server/calls.ts) ---
+
+export interface CallLogEntry {
+  id: number;
+  user_id: number;
+  /** null when the account the call was assigned to has since been deleted. */
+  username: string | null;
+  caller_name: string;
+  export_no: string | null;
+  call_id: string | null;
+  call_date: string;
+  call_time: string | null;
+  from_phone: string | null;
+  to_phone: string | null;
+  duration_seconds: number | null;
+  /** 1 recorded, 0 not, null when the export left it blank. */
+  recorded: number | null;
+  upload_id: number;
+}
+
+export interface CallsResponse {
+  entries: CallLogEntry[];
+  hasMore: boolean;
+}
+
+export interface CallUpload {
+  id: number;
+  filename: string | null;
+  uploaded_by_name: string;
+  imported_rows: number;
+  skipped_rows: number;
+  replaced_days: number;
+  date_from: string | null;
+  date_to: string | null;
+  created_at: string;
+}
+
+export interface CallerSummary {
+  key: string;
+  name: string;
+  phone: string | null;
+  rows: number;
+  suggestedUserId: number | null;
+  remembered: boolean;
+}
+
+export interface DayConflict {
+  key: string;
+  userId: number;
+  username: string;
+  date: string;
+  existing: number;
+  incoming: number;
+}
+
+export type Resolution = "replace" | "skip";
+
+export interface CallPreview {
+  totalRows: number;
+  readableRows: number;
+  columns: Record<string, string>;
+  missingColumns: string[];
+  range: { from: string | null; to: string | null };
+  errors: { line: number; message: string }[];
+  errorCount: number;
+  callers: CallerSummary[];
+  conflicts: DayConflict[];
+}
+
+export interface CallImportResult {
+  uploadId: number;
+  imported: number;
+  skippedRows: number;
+  replacedDays: number;
+  skippedDays: number;
 }
 
 export interface AuditResponse {

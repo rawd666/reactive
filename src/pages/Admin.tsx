@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, ComponentType, FormEvent } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { Users, UserCog, ScrollText, LogOut, Trash2, Plus } from "lucide-react";
+import { Users, UserCog, ScrollText, LogOut, Trash2, Plus, PhoneCall } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Seo from "../components/common/Seo";
 import type {
   AdminUser,
   AuditResponse,
+  CallImportResult,
+  CallPreview,
+  CallsResponse,
+  CallUpload,
   Client,
+  Resolution,
   ClientStatus,
   Permission,
   Role,
@@ -638,6 +643,603 @@ function UsersPanel({ me, onSignedOut }: PanelProps) {
   );
 }
 
+// --- call logs -----------------------------------------------------------
+// The master uploads dialer CSV exports; everyone with calls:read sees the log
+// (non-master accounts only their own calls — the server enforces that).
+
+// "2026-10-20" → "Oct 20, 2026", read as a local date. new Date("2026-10-20")
+// would be UTC midnight, which shows as the day before west of Greenwich.
+function fmtDay(day: string | null) {
+  if (!day) return "—";
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function fmtDuration(seconds: number | null) {
+  if (seconds === null) return "—";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = String(seconds % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+// From Name (normalised) → user id. undefined = not decided yet; null = leave
+// that name's rows out of the import.
+type CallerMapping = Record<string, number | null | undefined>;
+
+interface CallUploadFormProps {
+  users: AdminUser[];
+  onImported: () => void;
+}
+
+function CallUploadForm({ users, onImported }: CallUploadFormProps) {
+  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  const [preview, setPreview] = useState<CallPreview | null>(null);
+  const [mapping, setMapping] = useState<CallerMapping>({});
+  const [resolutions, setResolutions] = useState<Record<string, Resolution>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
+  // Every preview bumps this; a response that isn't the latest is dropped, so
+  // quickly changing two names can't leave the older answer on screen.
+  const latest = useRef(0);
+
+  // Asks the server to parse the file and report From Names and conflicts.
+  // `fresh` (a new file) starts the mapping over from the server's
+  // suggestions; otherwise the uploader's choices are kept.
+  async function check(text: string, chosen: CallerMapping, fresh: boolean) {
+    const request = ++latest.current;
+    setBusy(true);
+    setError("");
+    try {
+      const data = await api<CallPreview>("/calls/preview", {
+        method: "POST",
+        // Undecided names (undefined) drop out of the JSON, so the server
+        // falls back to its suggestion for them when looking for conflicts.
+        body: JSON.stringify({ csv: text, mapping: chosen }),
+      });
+      if (request !== latest.current) return;
+      setPreview(data);
+      if (fresh) {
+        const initial: CallerMapping = {};
+        for (const caller of data.callers) {
+          if (caller.suggestedUserId !== null) initial[caller.key] = caller.suggestedUserId;
+        }
+        setMapping(initial);
+        setResolutions({});
+      }
+    } catch (err) {
+      if (request !== latest.current) return;
+      setPreview(null);
+      setError((err as Error).message);
+    }
+    if (request === latest.current) setBusy(false);
+  }
+
+  async function chooseFile(e: ChangeEvent<HTMLInputElement>) {
+    const chosen = e.target.files?.[0];
+    setDone("");
+    if (!chosen) return;
+    const text = await chosen.text();
+    setFile({ name: chosen.name, text });
+    check(text, {}, true);
+  }
+
+  function assignCaller(key: string, value: string) {
+    const next = { ...mapping, [key]: value === "skip" ? null : Number(value) };
+    setMapping(next);
+    if (file) check(file.text, next, false);
+  }
+
+  function resolveAll(resolution: Resolution) {
+    if (!preview) return;
+    setResolutions(Object.fromEntries(preview.conflicts.map((c) => [c.key, resolution])));
+  }
+
+  function reset() {
+    latest.current++; // drop any preview still in flight
+    setFile(null);
+    setPreview(null);
+    setMapping({});
+    setResolutions({});
+    setError("");
+    setBusy(false);
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  async function runImport() {
+    if (!file || !preview) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<CallImportResult>("/calls/import", {
+        method: "POST",
+        body: JSON.stringify({
+          csv: file.text,
+          mapping,
+          resolutions,
+          filename: file.name,
+        }),
+      });
+      reset();
+      setDone(
+        `Imported ${result.imported} call${result.imported === 1 ? "" : "s"} from ${file.name}` +
+          (result.replacedDays ? ` · ${result.replacedDays} day(s) replaced` : "") +
+          (result.skippedRows ? ` · ${result.skippedRows} row(s) left out` : "")
+      );
+      onImported();
+    } catch (err) {
+      const message = (err as Error).message;
+      setBusy(false);
+      // 409: the conflicts changed after the preview (another import ran in
+      // between). Re-check so the new ones show up for a decision.
+      if ((err as ApiError).status === 409) await check(file.text, mapping, false);
+      setError(message);
+    }
+  }
+
+  const unassigned = preview ? preview.callers.filter((c) => mapping[c.key] === undefined) : [];
+  const unresolved = preview ? preview.conflicts.filter((c) => !resolutions[c.key]) : [];
+  const importing = preview
+    ? preview.callers.reduce((n, c) => (typeof mapping[c.key] === "number" ? n + c.rows : n), 0)
+    : 0;
+  const ready = Boolean(preview) && !busy && !unassigned.length && !unresolved.length && importing > 0;
+
+  return (
+    <div className="rx-admin-upload">
+      <div className="rx-admin-upload-row">
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={chooseFile}
+          aria-label="Call log CSV file"
+        />
+        {file && (
+          <button type="button" className="rx-admin-linkbtn" onClick={reset}>
+            Clear
+          </button>
+        )}
+      </div>
+      <p className="rx-admin-note" style={{ marginTop: 10 }}>
+        Upload the phone system&apos;s call-history export as CSV. Kept: NO., Call ID, From Name
+        (the user who made the call), From Phone Number, To Phone Number, Start Time
+        (MM/DD/YYYY h:mm:ss AM), Duration and Recorded — every other column is ignored.
+      </p>
+
+      {error && <p className="rx-admin-error">{error}</p>}
+      {done && <p className="rx-admin-ok">{done}</p>}
+      {busy && !preview && <p className="rx-admin-note">Checking file…</p>}
+
+      {preview && (
+        <>
+          <p className="rx-admin-upload-summary">
+            <strong>{preview.readableRows}</strong> of {preview.totalRows} rows readable ·{" "}
+            {fmtDay(preview.range.from)} – {fmtDay(preview.range.to)}
+          </p>
+          {preview.missingColumns.length > 0 && (
+            <p className="rx-admin-error">
+              Not in this file, so left blank: {preview.missingColumns.join(", ")}
+            </p>
+          )}
+
+          {preview.errorCount > 0 && (
+            <details className="rx-admin-details">
+              <summary>
+                {preview.errorCount} row{preview.errorCount === 1 ? "" : "s"} can&apos;t be read
+                and will be left out
+              </summary>
+              <ul>
+                {preview.errors.map((e) => (
+                  <li key={e.line}>
+                    line {e.line}: {e.message}
+                  </li>
+                ))}
+                {preview.errorCount > preview.errors.length && (
+                  <li>…and {preview.errorCount - preview.errors.length} more</li>
+                )}
+              </ul>
+            </details>
+          )}
+
+          <h3 className="rx-admin-subhead">Who made the calls</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table className="rx-admin-table">
+              <thead>
+                <tr>
+                  <th>From Name</th>
+                  <th>From Phone Number</th>
+                  <th>Calls</th>
+                  <th>Dashboard user</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.callers.map((caller) => {
+                  const value = mapping[caller.key];
+                  const suggested =
+                    caller.suggestedUserId !== null && value === caller.suggestedUserId;
+                  return (
+                    <tr key={caller.key}>
+                      <td>{caller.name}</td>
+                      <td className="rx-mono" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                        {caller.phone || "—"}
+                      </td>
+                      <td>{caller.rows}</td>
+                      <td>
+                        <select
+                          value={value === undefined ? "" : value === null ? "skip" : String(value)}
+                          onChange={(e) => assignCaller(caller.key, e.target.value)}
+                          aria-label={`User for ${caller.name} ${caller.phone ?? ""}`}
+                        >
+                          <option value="" disabled>
+                            Choose a user…
+                          </option>
+                          {users.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.username}
+                              {u.name ? ` (${u.name})` : ""}
+                              {u.status === "disabled" ? " — disabled" : ""}
+                            </option>
+                          ))}
+                          <option value="skip">Don&apos;t import</option>
+                        </select>
+                        {suggested && (
+                          <span className="rx-admin-tag muted">
+                            {caller.remembered ? "saved" : "matched"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {preview.conflicts.length > 0 && (
+            <>
+              <h3 className="rx-admin-subhead">Date conflicts</h3>
+              <p className="rx-admin-note" style={{ marginTop: 0 }}>
+                These users already have calls logged on these days. <strong>Replace</strong>{" "}
+                deletes that day&apos;s existing calls and imports the file&apos;s;{" "}
+                <strong>skip</strong> keeps the existing calls and leaves the file&apos;s rows for
+                that day out.
+              </p>
+              <div className="rx-admin-upload-row" style={{ marginTop: 10 }}>
+                <button type="button" className="rx-admin-linkbtn" onClick={() => resolveAll("skip")}>
+                  Skip all
+                </button>
+                <button
+                  type="button"
+                  className="rx-admin-linkbtn"
+                  onClick={() => resolveAll("replace")}
+                >
+                  Replace all
+                </button>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="rx-admin-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>User</th>
+                      <th>Already logged</th>
+                      <th>In file</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.conflicts.map((conflict) => (
+                      <tr key={conflict.key}>
+                        <td style={{ whiteSpace: "nowrap" }}>{fmtDay(conflict.date)}</td>
+                        <td className="rx-mono">{conflict.username}</td>
+                        <td>{conflict.existing}</td>
+                        <td>{conflict.incoming}</td>
+                        <td>
+                          <select
+                            value={resolutions[conflict.key] ?? ""}
+                            onChange={(e) =>
+                              setResolutions((r) => ({
+                                ...r,
+                                [conflict.key]: e.target.value as Resolution,
+                              }))
+                            }
+                            aria-label={`Action for ${conflict.username} on ${conflict.date}`}
+                          >
+                            <option value="" disabled>
+                              Choose…
+                            </option>
+                            <option value="skip">Skip</option>
+                            <option value="replace">Replace</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          <div className="rx-admin-upload-row" style={{ marginTop: 20 }}>
+            <button className="rx-btn rx-btn-primary" onClick={runImport} disabled={!ready}>
+              {busy ? "Checking…" : `Import ${importing} call${importing === 1 ? "" : "s"}`}
+            </button>
+            <span className="rx-admin-note" style={{ marginTop: 0 }}>
+              {unassigned.length > 0
+                ? `${unassigned.length} name + number pair(s) still need a user`
+                : unresolved.length > 0
+                  ? `${unresolved.length} conflicting day(s) need a decision`
+                  : ""}
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RecentUploads({ refreshKey }: { refreshKey: number }) {
+  const [uploads, setUploads] = useState<CallUpload[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ uploads: CallUpload[] }>("/calls/uploads")
+      .then((data) => {
+        if (!cancelled) setUploads(data.uploads);
+      })
+      .catch(() => {
+        if (!cancelled) setUploads([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  if (!uploads?.length) return null;
+
+  return (
+    <details className="rx-admin-details" style={{ marginTop: 16 }}>
+      <summary>Recent uploads</summary>
+      <div style={{ overflowX: "auto" }}>
+        <table className="rx-admin-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>File</th>
+              <th>By</th>
+              <th>Dates</th>
+              <th>Imported</th>
+              <th>Left out</th>
+              <th>Days replaced</th>
+            </tr>
+          </thead>
+          <tbody>
+            {uploads.map((u) => (
+              <tr key={u.id}>
+                <td style={{ whiteSpace: "nowrap" }}>{fmtDateTime(u.created_at)}</td>
+                <td>{u.filename || "—"}</td>
+                <td className="rx-mono">{u.uploaded_by_name}</td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {fmtDay(u.date_from)} – {fmtDay(u.date_to)}
+                </td>
+                <td>{u.imported_rows}</td>
+                <td>{u.skipped_rows}</td>
+                <td>{u.replaced_days}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
+interface CallFilters {
+  user: string;
+  from: string;
+  to: string;
+}
+
+interface CallLogProps extends PanelProps {
+  users: AdminUser[];
+  refreshKey: number;
+}
+
+function CallLog({ me, users, refreshKey, onSignedOut }: CallLogProps) {
+  const [state, setState] = useState<CallsResponse | null>(null);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState<CallFilters>({ user: "", from: "", to: "" });
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const query = useCallback(
+    (offset: number) => {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+      for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+      return api<CallsResponse>(`/calls?${params}`);
+    },
+    [filters]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    query(0)
+      .then((data) => {
+        if (!cancelled) setState(data);
+      })
+      .catch((err: ApiError) => {
+        if (cancelled) return;
+        if (err.status === 401) onSignedOut();
+        else setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query, onSignedOut, refreshKey]);
+
+  async function loadMore() {
+    if (!state) return;
+    setLoadingMore(true);
+    try {
+      const data = await query(state.entries.length);
+      setState((s) => ({ ...data, entries: [...(s?.entries ?? []), ...data.entries] }));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    setLoadingMore(false);
+  }
+
+  const set =
+    (key: keyof CallFilters) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setFilters((f) => ({ ...f, [key]: e.target.value }));
+
+  return (
+    <>
+      <div className="rx-admin-filters">
+        {me.isMaster && (
+          <select value={filters.user} onChange={set("user")} aria-label="Filter by user">
+            <option value="">All users</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.username}
+              </option>
+            ))}
+          </select>
+        )}
+        <input type="date" value={filters.from} onChange={set("from")} aria-label="From date" />
+        <input type="date" value={filters.to} onChange={set("to")} aria-label="To date" />
+      </div>
+
+      {error && <p className="rx-admin-error">{error}</p>}
+      {!state && !error && <p style={{ marginTop: 24 }}>Loading…</p>}
+
+      {state?.entries.length === 0 && (
+        <p style={{ marginTop: 24 }}>No calls logged for that filter.</p>
+      )}
+
+      {state && state.entries.length > 0 && (
+        <>
+          <div style={{ overflowX: "auto", marginTop: 20 }}>
+            <table className="rx-admin-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  {me.isMaster && <th>User</th>}
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Duration</th>
+                  <th>Recorded</th>
+                  <th>Call ID</th>
+                  <th>No.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.entries.map((call) => (
+                  <tr key={call.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>{fmtDay(call.call_date)}</td>
+                    <td className="rx-mono" style={{ fontSize: 13 }}>
+                      {call.call_time ? call.call_time.slice(0, 5) : "—"}
+                    </td>
+                    {me.isMaster && (
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <span className="rx-mono">{call.username ?? "deleted user"}</span>
+                        {call.caller_name.toLowerCase() !== (call.username ?? "").toLowerCase() && (
+                          <>
+                            <br />
+                            <span style={{ fontSize: 12, color: "var(--color-gray-mid)" }}>
+                              as {call.caller_name}
+                            </span>
+                          </>
+                        )}
+                      </td>
+                    )}
+                    <td className="rx-mono" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                      {call.from_phone || "—"}
+                    </td>
+                    <td className="rx-mono" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+                      {call.to_phone || "—"}
+                    </td>
+                    <td className="rx-mono" style={{ fontSize: 13 }}>
+                      {fmtDuration(call.duration_seconds)}
+                    </td>
+                    <td>{call.recorded === null ? "—" : call.recorded ? "Yes" : "No"}</td>
+                    <td className="rx-mono" style={{ fontSize: 12, color: "var(--color-gray-mid)" }}>
+                      {call.call_id || "—"}
+                    </td>
+                    <td className="rx-mono" style={{ fontSize: 12, color: "var(--color-gray-mid)" }}>
+                      {call.export_no || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {state.hasMore && (
+            <button
+              className="rx-btn rx-btn-outline"
+              style={{ marginTop: 24 }}
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load older"}
+            </button>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function CallsPanel({ me, onSignedOut }: PanelProps) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  // Bumped after an import so the log and upload history reload.
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Only the master assigns callers and filters by user, and /users is
+  // master-only, so nobody else asks for the list.
+  useEffect(() => {
+    if (!me.isMaster) return;
+    let cancelled = false;
+    api<UsersResponse>("/users")
+      .then((data) => {
+        if (!cancelled) setUsers(data.users);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [me.isMaster]);
+
+  return (
+    <>
+      <PanelHeading
+        title="Call logs"
+        note={
+          me.isMaster
+            ? "Calls imported from the phone system's CSV export. Each From Name + From Phone Number pair is tied to a dashboard user."
+            : "Calls logged under your account."
+        }
+      />
+
+      {me.isMaster && (
+        <>
+          <CallUploadForm users={users} onImported={() => setRefreshKey((k) => k + 1)} />
+          <RecentUploads refreshKey={refreshKey} />
+        </>
+      )}
+
+      <CallLog me={me} users={users} refreshKey={refreshKey} onSignedOut={onSignedOut} />
+    </>
+  );
+}
+
 // --- audit log (master only) ---------------------------------------------
 
 const PAGE_SIZE = 100;
@@ -720,7 +1322,7 @@ function AuditPanel({ onSignedOut }: Pick<PanelProps, "onSignedOut">) {
         </select>
         <select value={filters.resource} onChange={set("resource")}>
           <option value="">All areas</option>
-          {["clients", "revision", "users", "audit", "session"].map((r) => (
+          {["clients", "revision", "calls", "users", "audit", "session"].map((r) => (
             <option key={r} value={r}>
               {r}
             </option>
@@ -812,6 +1414,13 @@ const SECTIONS: Section[] = [
     icon: Users,
     Panel: ClientsPanel,
     when: (user) => can(user, "clients:read"),
+  },
+  {
+    id: "calls",
+    label: "Call logs",
+    icon: PhoneCall,
+    Panel: CallsPanel,
+    when: (user) => can(user, "calls:read"),
   },
   {
     id: "users",

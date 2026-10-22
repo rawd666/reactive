@@ -34,6 +34,13 @@ import {
   ROLE_PERMISSIONS,
 } from './users.ts';
 import { recordAudit, listAudit, auditUsernames, AUDIT_ACTIONS } from './audit.ts';
+import {
+  previewCalls,
+  importCalls,
+  listCalls,
+  recentUploads,
+} from './calls.ts';
+import type { CallImportError } from './calls.ts';
 import { currentUser, requirePermission, requireMaster } from './access.ts';
 
 const router = express.Router();
@@ -211,6 +218,86 @@ router.delete<{ id: string }>('/users/:id', requireMaster, (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// --- call logs -----------------------------------------------------------
+// Reading needs calls:read, and anyone but the master only ever gets their own
+// calls back — the user filter is forced server-side, not trusted from the UI.
+// Uploading is master-only. These routes get a larger JSON body limit than the
+// rest of the API (see server.ts) because the CSV travels in the body.
+
+router.get('/calls', requirePermission('calls:read'), (req, res) => {
+  const me = currentUser(req)!;
+  const { limit, offset, user, from, to } = req.query as Record<string, string | undefined>;
+  const userId = me.isMaster ? (user ? Number(user) : null) : me.id;
+  const { entries, hasMore } = listCalls({ limit, offset, userId, from, to });
+
+  // First page only, as with the audit log.
+  if (!Number(offset)) {
+    recordAudit(req, {
+      action: 'read',
+      resource: 'calls',
+      detail: `${entries.length} calls${userId !== null ? ` for user ${userId}` : ''}`,
+    });
+  }
+  res.json({ entries, hasMore });
+});
+
+router.get('/calls/uploads', requireMaster, (_req, res) => {
+  res.json({ uploads: recentUploads() });
+});
+
+// Shared body check for preview and import. Returns null after replying.
+function readUpload(req: express.Request, res: express.Response) {
+  const { csv } = req.body || {};
+  if (typeof csv !== 'string' || !csv.trim()) {
+    res.status(400).json({ error: 'Choose a CSV file to upload' });
+    return null;
+  }
+  return { csv };
+}
+
+function sendImportError(res: express.Response, err: unknown) {
+  const error = err as CallImportError;
+  if (!error.status) throw err; // a real bug, not a problem with the file
+  res.status(error.status).json({ error: error.message, conflicts: error.conflicts });
+}
+
+router.post('/calls/preview', requireMaster, (req, res) => {
+  const upload = readUpload(req, res);
+  if (!upload) return;
+  try {
+    res.json(previewCalls(upload.csv, req.body.mapping));
+  } catch (err) {
+    sendImportError(res, err);
+  }
+});
+
+router.post('/calls/import', requireMaster, (req, res) => {
+  const upload = readUpload(req, res);
+  if (!upload) return;
+  const filename =
+    typeof req.body.filename === 'string' ? req.body.filename.slice(0, 200) : null;
+  try {
+    const result = importCalls({
+      ...upload,
+      mapping: req.body.mapping,
+      resolutions: req.body.resolutions,
+      filename,
+      uploader: currentUser(req)!,
+    });
+    recordAudit(req, {
+      action: 'create',
+      resource: 'calls',
+      resourceId: `upload ${result.uploadId}`,
+      detail:
+        `${filename || 'csv'}: ${result.imported} imported, ${result.skippedRows} skipped` +
+        (result.replacedDays ? `, ${result.replacedDays} day(s) replaced` : ''),
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    sendImportError(res, err);
   }
 });
 

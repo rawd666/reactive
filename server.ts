@@ -56,6 +56,10 @@ app.use(cors({
   },
 }));
 
+// Call-log uploads carry a whole CSV file in the JSON body, so they get a larger
+// limit than the 100kb default everything else keeps. Mounted first: once this
+// has read a body, the general parser below skips the request.
+app.use('/api/admin/calls', express.json({ limit: '5mb' }));
 app.use(express.json());
 app.use(express.static(distPath)); // Serve static files from the dist directory
 

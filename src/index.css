@@ -369,6 +369,48 @@ body {
   padding:8px 12px;border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px;
 }
 .rx-admin-filters select:focus{outline:none;border-color:var(--color-pink);}
+.rx-admin-filters input{
+  background:var(--color-gray-dark);border:1px solid var(--color-border);color:var(--color-white);
+  padding:7px 12px;border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px;
+  color-scheme:dark; /* light calendar icon in the date pickers */
+}
+.rx-admin-filters input:focus{outline:none;border-color:var(--color-pink);}
+
+/* Call logs: the CSV upload card */
+.rx-admin-upload{
+  margin-top:28px;background:var(--color-gray-dark);border:1px solid var(--color-border);
+  border-radius:var(--radius-md);padding:18px;
+}
+.rx-admin-upload-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.rx-admin-upload-row select{
+  background:var(--color-black);border:1px solid var(--color-border);color:var(--color-white);
+  padding:8px 12px;border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px;
+}
+.rx-admin-upload-row select:focus{outline:none;border-color:var(--color-pink);}
+.rx-admin-upload input[type=file]{font-size:13px;color:var(--color-text-body);max-width:100%;}
+.rx-admin-upload input[type=file]::file-selector-button{
+  margin-right:10px;padding:8px 14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  background:var(--color-black);color:var(--color-white);font-family:var(--font-body);cursor:pointer;
+}
+.rx-admin-upload input[type=file]::file-selector-button:hover{border-color:var(--color-pink);}
+.rx-admin-upload-summary{margin-top:18px;font-size:14px;}
+.rx-admin-subhead{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--color-gray-mid);margin:26px 0 8px;font-weight:400;
+}
+.rx-admin-linkbtn{
+  background:none;border:none;padding:0;color:var(--color-gray-mid);font-size:13px;
+  text-decoration:underline;cursor:pointer;
+}
+.rx-admin-linkbtn:hover{color:var(--color-pink);}
+.rx-admin-ok{color:var(--color-white);font-size:13px;margin-top:8px;}
+.rx-admin-details{margin-top:12px;font-size:13px;color:var(--color-text-body);}
+.rx-admin-details summary{cursor:pointer;color:var(--color-gray-mid);}
+.rx-admin-details summary:hover{color:var(--color-pink);}
+.rx-admin-details ul{
+  margin-top:8px;padding-left:18px;max-height:180px;overflow-y:auto;
+  font-family:var(--font-mono);font-size:12px;
+}
 
 .rx-admin-action{
   font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;

@@ -29,6 +29,7 @@ function isAssignableRole(role: unknown): role is AssignableRole {
 export const PERMISSIONS = [
   'clients:read',
   'clients:write',
+  'calls:read', // non-master accounts only ever see their own calls
   'users:manage',
   'audit:read',
 ] as const;
@@ -44,7 +45,7 @@ function isPermission(p: unknown): p is Permission {
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   master: [...PERMISSIONS],
   developer: ['clients:read', 'clients:write'],
-  telemarketer: ['clients:read'],
+  telemarketer: ['clients:read', 'calls:read'],
 };
 
 db.exec(`
