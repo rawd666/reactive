@@ -2,9 +2,9 @@
 // exactly one operator, so the credentials live in the environment and the
 // session is a signed, httpOnly cookie.
 //
-// Nothing has to be configured to sign in — the server seeds a default admin on
-// first boot so the dashboard is usable straight away. Override any of these in
-// .env (and do, before the site is public):
+// Nothing has to be configured to sign in locally — the server seeds a default
+// admin so the dashboard is usable straight away. In production (NODE_ENV=production)
+// it refuses to start until a password is set. Override any of these in .env:
 //
 //   ADMIN_USER=you
 //   ADMIN_PASSWORD=a-long-password          # hashed at boot, never stored
@@ -102,6 +102,15 @@ export function initAdminConfig(): AdminConfig {
   const user = adminUser();
   const seeded = usesSeededLogin();
 
+  // The seeded password is public, so in production it would leave /admin open
+  // to anyone. Refuse to start instead of warning into a log nobody reads.
+  if (seeded && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[admin] No admin password configured. Set ADMIN_USER and ADMIN_PASSWORD_HASH ' +
+        '(npm run admin-password) or ADMIN_PASSWORD in .env, then restart.'
+    );
+  }
+
   let passwordHash = process.env.ADMIN_PASSWORD_HASH;
   let passwordSource = 'ADMIN_PASSWORD_HASH';
   if (!passwordHash) {
@@ -152,19 +161,24 @@ function sign(value: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(value).digest('hex');
 }
 
-// The payload carries who is signed in as well as when the session ends, so
-// every request can be attributed to an account in the audit log. Both halves
-// are covered by the signature, so neither can be swapped.
+// The payload carries who is signed in, when the session started and when it
+// ends. The user id attributes every request in the audit log; the start time
+// lets signing out (or a password change) revoke sessions issued before it.
+// All of it is covered by the signature, so none of it can be swapped.
 function makeToken(secret: string, userId: number): string {
-  const expiresAt = Date.now() + SESSION_HOURS * 3600 * 1000;
-  const payload = `${userId}:${expiresAt}`;
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + SESSION_HOURS * 3600 * 1000;
+  const payload = `${userId}:${issuedAt}:${expiresAt}`;
   return `${payload}.${sign(payload, secret)}`;
 }
 
-function readToken(
-  token: string | null,
-  secret: string
-): { userId: number; expiresAt: number } | null {
+export interface SessionToken {
+  userId: number;
+  issuedAt: number;
+  expiresAt: number;
+}
+
+function readToken(token: string | null, secret: string): SessionToken | null {
   if (!token || !token.includes('.')) return null;
   const [payload, signature] = token.split('.');
   const expected = sign(payload, secret);
@@ -172,10 +186,11 @@ function readToken(
   const b = Buffer.from(expected, 'utf8');
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
 
-  const [userId, expiresAt] = payload.split(':');
-  if (!userId || !expiresAt) return null; // pre-multi-user cookie; make them sign in again
+  const [userId, issuedAt, expiresAt] = payload.split(':');
+  // Older cookies have no issue time and can't be revoked; make them sign in again.
+  if (!userId || !issuedAt || !expiresAt) return null;
   if (Number(expiresAt) < Date.now()) return null;
-  return { userId: Number(userId), expiresAt: Number(expiresAt) };
+  return { userId: Number(userId), issuedAt: Number(issuedAt), expiresAt: Number(expiresAt) };
 }
 
 // Small cookie reader so this needs no cookie-parser dependency.
@@ -204,9 +219,8 @@ export function clearSession(res: Response) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
-/** The user id in the request's session cookie, or null. */
-export function sessionUserId(req: Request): number | null {
+/** The request's verified, unexpired session cookie, or null. */
+export function readSession(req: Request): SessionToken | null {
   const { sessionSecret } = getConfig();
-  const token = readToken(readCookie(req, COOKIE_NAME), sessionSecret);
-  return token ? token.userId : null;
+  return readToken(readCookie(req, COOKIE_NAME), sessionSecret);
 }

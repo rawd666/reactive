@@ -26,6 +26,13 @@ services:
       - "traefik.http.middlewares.reactive-compress.compress=true"
       - "traefik.http.middlewares.reactive-compress.compress.encodings=br,zstd,gzip"
       - "traefik.http.middlewares.reactive-secheaders.headers.customResponseHeaders.Server="
+      # HTTPS only for a year. No includeSubdomains/preload: other subdomains may not have TLS.
+      - "traefik.http.middlewares.reactive-secheaders.headers.stsSeconds=31536000"
+      # Nobody may frame the site, so /admin can't be clickjacked.
+      - "traefik.http.middlewares.reactive-secheaders.headers.frameDeny=true"
+      - "traefik.http.middlewares.reactive-secheaders.headers.contentSecurityPolicy=frame-ancestors 'none'"
+      - "traefik.http.middlewares.reactive-secheaders.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.reactive-secheaders.headers.referrerPolicy=strict-origin-when-cross-origin"
       - "traefik.http.routers.reactive-web.rule=Host(`reactiveweb.dev`)"
       - "traefik.http.routers.reactive-web.entrypoints=websecure"
       - "traefik.http.routers.reactive-web.tls.certresolver=le"

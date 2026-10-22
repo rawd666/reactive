@@ -27,6 +27,7 @@ import {
   deleteUser,
   verifyCredentials,
   recordLogin,
+  revokeSessions,
   initUsers,
   ROLES,
   PERMISSIONS,
@@ -75,7 +76,13 @@ router.post('/login', loginLimiter, (req, res) => {
 
 router.post('/logout', (req, res) => {
   const user = currentUser(req);
-  if (user) recordAudit(req, { action: 'logout', resource: 'session' });
+  if (user) {
+    // Clearing the cookie only helps this browser; revoking server-side also
+    // kills a copy of the cookie anywhere else. Ends the account's other
+    // devices too, which is the safer side to err on.
+    revokeSessions(user.id);
+    recordAudit(req, { action: 'logout', resource: 'session' });
+  }
   clearSession(res);
   res.json({ ok: true });
 });

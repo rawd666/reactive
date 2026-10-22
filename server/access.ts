@@ -6,8 +6,8 @@
 // instead of when its 12-hour session happens to expire.
 
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { sessionUserId } from './auth.ts';
-import { getUserById, can } from './users.ts';
+import { readSession } from './auth.ts';
+import { getSessionUser, can } from './users.ts';
 import type { PublicUser, Permission } from './users.ts';
 
 // Caches the resolved user on the request; undefined means "not looked up yet".
@@ -24,8 +24,8 @@ declare global {
 export function currentUser(req: Request): PublicUser | null {
   if (req.adminUser !== undefined) return req.adminUser;
 
-  const id = sessionUserId(req);
-  const user = id === null ? null : getUserById(id);
+  const session = readSession(req);
+  const user = session ? getSessionUser(session.userId, session.issuedAt) : null;
   // A disabled account keeps a valid cookie but stops counting as signed in.
   req.adminUser = user && user.status === 'active' ? user : null;
   return req.adminUser;

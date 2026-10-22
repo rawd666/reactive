@@ -63,6 +63,14 @@ db.exec(`
   );
 `);
 
+// Sessions are signed cookies with nothing stored server-side, so revoking one
+// means recording a cutoff: any session issued at or before this time (ms) is
+// refused. Added after the table existed, hence the migration.
+const userColumns = db.prepare('PRAGMA table_info(admin_users)').all() as { name: string }[];
+if (!userColumns.some((c) => c.name === 'sessions_valid_after')) {
+  db.exec('ALTER TABLE admin_users ADD COLUMN sessions_valid_after INTEGER NOT NULL DEFAULT 0');
+}
+
 type UserRow = {
   id: number;
   username: string;
@@ -75,6 +83,7 @@ type UserRow = {
   status: string;
   created_at: string;
   last_login_at: string | null;
+  sessions_valid_after: number;
 };
 
 /** The shape sent to the browser — never includes the password hash. */
@@ -189,6 +198,19 @@ export function getUserById(id: number): PublicUser | null {
   return publicUser(db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as UserRow | undefined);
 }
 
+/** The account behind a session, or null if the session was issued before a revocation. */
+export function getSessionUser(id: number, issuedAt: number): PublicUser | null {
+  initUsers();
+  const row = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as UserRow | undefined;
+  if (!row || issuedAt <= row.sessions_valid_after) return null;
+  return publicUser(row);
+}
+
+/** Ends every session the account currently has, on every device. */
+export function revokeSessions(id: number) {
+  db.prepare('UPDATE admin_users SET sessions_valid_after = ? WHERE id = ?').run(Date.now(), id);
+}
+
 /**
  * Checks a username/password pair.
  * Returns the public user on success, or null — never a reason, so the caller
@@ -266,7 +288,7 @@ export function updateUser(
   if (!row) return null;
 
   const fields: string[] = [];
-  const values: string[] = [];
+  const values: (string | number)[] = [];
   const changed: string[] = [];
 
   for (const key of Object.keys(patch)) {
@@ -311,6 +333,10 @@ export function updateUser(
     }
     fields.push('password_hash = ?');
     values.push(hashPassword(String(patch.password)));
+    // A new password should lock out whoever knew the old one, so their
+    // existing sessions end too.
+    fields.push('sessions_valid_after = ?');
+    values.push(Date.now());
     changed.push('password');
   }
 

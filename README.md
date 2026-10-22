@@ -91,8 +91,12 @@ prints an `ADMIN_PASSWORD_HASH` (and a `SESSION_SECRET`) to paste into `.env` in
 A session secret is generated into `DATA_DIR/session-secret` if you don't set one,
 so sign-ins survive a restart.
 
-**Change the seeded login before putting the site on a public host** — it's in
-this README.
+The seeded login only works outside production: with `NODE_ENV=production` (as
+in `docker-compose.yaml`) the server refuses to start until `ADMIN_PASSWORD_HASH`
+or `ADMIN_PASSWORD` is set.
+
+Signing out revokes the session server-side, on every device that account is
+signed in on. Changing a user's password does the same for that user.
 
 ## Build for production
 
